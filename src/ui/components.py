@@ -13,15 +13,19 @@ from src.config import COLOR_PLATAFORMA, TEMA
 from src.ui.theme import badge_origen, eur, num, pct
 
 
+import base64 as _base64
 from pathlib import Path as _Path
 
 _LOGO_SVG = _Path(__file__).resolve().parents[2] / "assets" / "reversal-logo.svg"
 
 
 @st.cache_data(show_spinner=False)
-def _logo_svg() -> str:
+def _logo_datauri() -> str:
+    """SVG del logo como data-URI para incrustarlo en un <img> sin que el
+    <style> interno del SVG se filtre como texto."""
     try:
-        return _LOGO_SVG.read_text(encoding="utf-8")
+        b64 = _base64.b64encode(_LOGO_SVG.read_bytes()).decode()
+        return f"data:image/svg+xml;base64,{b64}"
     except Exception:  # noqa: BLE001
         return ""
 
@@ -33,12 +37,12 @@ def cabecera(titulo: str, subtitulo: str = "") -> None:
         if subtitulo:
             st.caption(subtitulo)
     with col2:
-        svg = _logo_svg()
-        if svg:
+        uri = _logo_datauri()
+        if uri:
             st.markdown(
-                "<style>.rv-logo svg{width:210px;max-width:100%;height:auto;}</style>"
-                f'<div class="rv-logo" style="text-align:right;margin-top:.5rem;">{svg}</div>'
-                '<div style="text-align:right;color:#888;font-size:.72rem;'
+                f'<div style="text-align:right;margin-top:.6rem;">'
+                f'<img src="{uri}" alt="Reversal" style="width:200px;max-width:100%;height:auto;"></div>'
+                '<div style="text-align:right;color:#888;font-size:.72rem;margin-top:.15rem;'
                 'text-transform:uppercase;letter-spacing:.04em;">Dashboard de marketing</div>',
                 unsafe_allow_html=True,
             )

@@ -216,6 +216,11 @@ def kpi(col, titulo: str, valor: str, sub: str = "", estado: str | None = None) 
 # --------------------------------------------------------------------------- #
 # Gráficos
 # --------------------------------------------------------------------------- #
+# Leyenda horizontal DEBAJO del gráfico (para que en móvil no coma ancho y el
+# gráfico salga completo). Se aplica solo cuando hay series (color).
+_LEG_ABAJO = dict(orientation="h", yanchor="top", y=-0.28, xanchor="center", x=0.5)
+
+
 def linea_temporal(df: pd.DataFrame, x: str, y: str, color: str | None,
                    titulo: str, y_label: str = "") -> None:
     if df.empty:
@@ -225,8 +230,9 @@ def linea_temporal(df: pd.DataFrame, x: str, y: str, color: str | None,
                   color_discrete_map=COLOR_PLATAFORMA,
                   color_discrete_sequence=list(TEMA.paleta))
     fig.update_layout(
-        title=titulo, height=340, margin=dict(l=10, r=10, t=40, b=10),
-        legend_title="", yaxis_title=y_label, xaxis_title="",
+        title=titulo, height=400 if color else 340,
+        margin=dict(l=10, r=10, t=40, b=90 if color else 10),
+        legend=_LEG_ABAJO, legend_title="", yaxis_title=y_label, xaxis_title="",
         plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
     )
     st.plotly_chart(fig, width='stretch')
@@ -242,8 +248,8 @@ def area_apilada(df: pd.DataFrame, x: str, y: str, color: str,
                   color_discrete_map=COLOR_PLATAFORMA,
                   color_discrete_sequence=list(TEMA.paleta))
     fig.update_layout(
-        title=titulo, height=340, margin=dict(l=10, r=10, t=40, b=10),
-        legend_title="", yaxis_title=y_label, xaxis_title="",
+        title=titulo, height=400, margin=dict(l=10, r=10, t=40, b=90),
+        legend=_LEG_ABAJO, legend_title="", yaxis_title=y_label, xaxis_title="",
         plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
     )
     st.plotly_chart(fig, width='stretch')
@@ -258,8 +264,10 @@ def barras(df: pd.DataFrame, x: str, y: str, color: str | None,
                  text=texto, color_discrete_map=COLOR_PLATAFORMA,
                  color_discrete_sequence=list(TEMA.paleta))
     fig.update_layout(
-        title=titulo, height=360, margin=dict(l=10, r=10, t=40, b=10),
-        legend_title="", plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+        title=titulo, height=400 if color else 360,
+        margin=dict(l=10, r=10, t=40, b=80 if color else 10),
+        legend=_LEG_ABAJO, legend_title="",
+        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
     )
     st.plotly_chart(fig, width='stretch')
 
@@ -285,6 +293,9 @@ def donut(df: pd.DataFrame, nombres: str, valores: str, titulo: str) -> None:
         return
     fig = px.pie(df, names=nombres, values=valores, hole=0.55,
                  color_discrete_sequence=list(TEMA.paleta))
-    fig.update_layout(title=titulo, height=320, margin=dict(l=10, r=10, t=40, b=10),
-                      paper_bgcolor="rgba(0,0,0,0)")
+    fig.update_layout(
+        title=titulo, height=380, margin=dict(l=10, r=10, t=40, b=70),
+        legend=dict(orientation="h", yanchor="top", y=-0.05, xanchor="center", x=0.5),
+        paper_bgcolor="rgba(0,0,0,0)",
+    )
     st.plotly_chart(fig, width='stretch')

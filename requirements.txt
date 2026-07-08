@@ -1,0 +1,13 @@
+# Core
+streamlit>=1.36
+pandas>=2.1
+numpy>=1.26
+plotly>=5.20
+pyarrow>=15.0
+requests>=2.31
+
+# Conectores de API (opcionales — solo si usas datos en vivo)
+google-ads>=25.0            # Google Ads API
+google-analytics-data>=0.18 # GA4 Data API
+google-auth>=2.29           # Service Account para GA4
+# HubSpot y Meta usan REST directo vía `requests` (no requieren SDK)

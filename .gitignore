@@ -1,0 +1,26 @@
+# Secretos y credenciales
+.streamlit/secrets.toml
+.streamlit/*.json
+*.pem
+*.json.key
+service_account*.json
+
+# Caché de datos: ignoramos todo MENOS el snapshot real de Google y Meta
+# (que la app desplegada no puede regenerar sola sin credenciales propias).
+# HubSpot se regenera en vivo con el token de secrets, así que su caché no se sube.
+data/cache/*
+!data/cache/google_ads.parquet
+!data/cache/meta_ads.parquet
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+
+# SO / editor
+.DS_Store
+.vscode/
+.idea/

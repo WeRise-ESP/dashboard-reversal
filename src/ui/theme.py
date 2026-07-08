@@ -1,0 +1,64 @@
+"""
+Tema visual y utilidades de formato compartidas por todas las páginas.
+"""
+from __future__ import annotations
+
+import streamlit as st
+
+from src.config import SIMBOLO_MONEDA, TEMA
+
+CSS = f"""
+<style>
+    .block-container {{ padding-top: 2rem; padding-bottom: 3rem; }}
+    [data-testid="stMetricValue"] {{ font-size: 1.7rem; }}
+    .kpi-card {{
+        background: var(--secondary-background-color);
+        border: 1px solid rgba(128,128,128,0.15);
+        border-left: 4px solid {TEMA.primario};
+        border-radius: 12px; padding: 1rem 1.2rem;
+    }}
+    .kpi-card h3 {{ font-size: .8rem; color: #888; margin: 0 0 .3rem 0;
+                    text-transform: uppercase; letter-spacing: .04em; }}
+    .kpi-card .val {{ font-size: 1.8rem; font-weight: 700; line-height: 1.1; }}
+    .kpi-card .sub {{ font-size: .8rem; color: #888; }}
+    .badge {{ display:inline-block; padding:.15rem .5rem; border-radius:999px;
+              font-size:.72rem; font-weight:600; }}
+    .badge-ok  {{ background: rgba(24,168,110,.15); color:{TEMA.verde_ok}; }}
+    .badge-warn{{ background: rgba(192,137,46,.15); color:{TEMA.ambar_riesgo}; }}
+    .badge-off {{ background: rgba(178,64,46,.15);  color:{TEMA.rojo_off}; }}
+</style>
+"""
+
+
+def aplicar_tema() -> None:
+    st.markdown(CSS, unsafe_allow_html=True)
+
+
+# --------------------------------------------------------------------------- #
+# Formateadores
+# --------------------------------------------------------------------------- #
+def eur(x: float, dec: int = 0) -> str:
+    try:
+        return f"{x:,.{dec}f} {SIMBOLO_MONEDA}".replace(",", "·").replace(".", ",").replace("·", ".")
+    except Exception:
+        return f"0 {SIMBOLO_MONEDA}"
+
+
+def pct(x: float, dec: int = 1) -> str:
+    try:
+        return f"{x*100:,.{dec}f}%".replace(".", ",")
+    except Exception:
+        return "0%"
+
+
+def num(x: float, dec: int = 0) -> str:
+    try:
+        return f"{x:,.{dec}f}".replace(",", "·").replace(".", ",").replace("·", ".")
+    except Exception:
+        return "0"
+
+
+def badge_origen(origen: str) -> str:
+    etiqueta = {"api": "En vivo (API)", "cache": "Caché", "sample": "Ejemplo"}.get(origen, origen)
+    clase = {"api": "badge-ok", "cache": "badge-warn", "sample": "badge-off"}.get(origen, "badge-off")
+    return f'<span class="badge {clase}">{etiqueta}</span>'

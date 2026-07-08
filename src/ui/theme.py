@@ -3,9 +3,13 @@ Tema visual y utilidades de formato compartidas por todas las páginas.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import streamlit as st
 
 from src.config import SIMBOLO_MONEDA, TEMA
+
+_ASSETS = Path(__file__).resolve().parents[2] / "assets"
 
 CSS = f"""
 <style>
@@ -32,6 +36,13 @@ CSS = f"""
 
 def aplicar_tema() -> None:
     st.markdown(CSS, unsafe_allow_html=True)
+    # Logo de marca de Reversal en la parte superior del sidebar (todas las hojas).
+    try:
+        st.logo(str(_ASSETS / "reversal-logo.svg"), size="large",
+                icon_image=str(_ASSETS / "reversal-icon.png"),
+                link="https://reversal.institute")
+    except Exception:  # noqa: BLE001
+        pass
 
 
 # --------------------------------------------------------------------------- #

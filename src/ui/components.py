@@ -13,15 +13,38 @@ from src.config import COLOR_PLATAFORMA, TEMA
 from src.ui.theme import badge_origen, eur, num, pct
 
 
+from pathlib import Path as _Path
+
+_LOGO_SVG = _Path(__file__).resolve().parents[2] / "assets" / "reversal-logo.svg"
+
+
+@st.cache_data(show_spinner=False)
+def _logo_svg() -> str:
+    try:
+        return _LOGO_SVG.read_text(encoding="utf-8")
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 def cabecera(titulo: str, subtitulo: str = "") -> None:
-    col1, col2 = st.columns([0.8, 0.2])
+    col1, col2 = st.columns([0.65, 0.35])
     with col1:
         st.title(titulo)
         if subtitulo:
             st.caption(subtitulo)
     with col2:
-        st.caption("Reversal Institute")
-        st.caption("Dashboard de marketing")
+        svg = _logo_svg()
+        if svg:
+            st.markdown(
+                "<style>.rv-logo svg{width:210px;max-width:100%;height:auto;}</style>"
+                f'<div class="rv-logo" style="text-align:right;margin-top:.5rem;">{svg}</div>'
+                '<div style="text-align:right;color:#888;font-size:.72rem;'
+                'text-transform:uppercase;letter-spacing:.04em;">Dashboard de marketing</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.caption("Reversal Institute")
+            st.caption("Dashboard de marketing")
 
 
 def selector_periodo(default: int = 30):

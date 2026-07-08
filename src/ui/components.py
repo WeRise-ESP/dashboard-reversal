@@ -128,6 +128,10 @@ _CSS_TABLA = f"""
 .rv-tabla tr.rv-total td {{ border-top:2px solid {TEMA.primario};
     border-bottom:none; font-weight:700; }}
 .rv-tabla td.rv-bold, .rv-tabla th.rv-bold {{ font-weight:700; }}
+@media (max-width: 640px) {{
+    .rv-tabla {{ font-size:.78rem; }}
+    .rv-tabla th, .rv-tabla td {{ padding:.35rem .45rem; }}
+}}
 </style>
 """
 

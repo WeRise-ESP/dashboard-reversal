@@ -189,9 +189,9 @@ def hubspot_leads(desde, hasta) -> pd.DataFrame:
     prob_campana = [0.55, 0.15, 0.12, 0.10, 0.08]
     paises = ["España", "México", "Argentina", "Estados Unidos", "Reino Unido", "Sin país"]
     prob_pais = [0.72, 0.08, 0.06, 0.05, 0.04, 0.05]
-    especialidades = ["Médico", "Nutricionista / Dietista", "Entrenador o Fisioterapeuta",
-                       "Enfermero/a", "Coach de salud", "Otro", "Sin especificar"]
-    prob_esp = [0.22, 0.14, 0.12, 0.08, 0.14, 0.20, 0.10]
+    especialidades = ["Médico", "Otro", "Coach de salud", "Esteticista",
+                       "Nutricionista", "Owner clínica", "Entrenador", "Sin especificar"]
+    prob_esp = [0.26, 0.22, 0.11, 0.10, 0.07, 0.07, 0.05, 0.12]
 
     lead_id = 1000
     for f in fechas:

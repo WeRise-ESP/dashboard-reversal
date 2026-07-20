@@ -640,7 +640,7 @@ def leads_por_pais(df_leads: pd.DataFrame, top: int = 8) -> pd.DataFrame:
 
 
 def especialidades_leads(df_leads: pd.DataFrame, top: int = 10) -> pd.DataFrame:
-    """Nº de leads por especialidad (perfil_titulacion). Devuelve [especialidad, leads]."""
+    """Nº de leads por especialidad (profesion). Devuelve [especialidad, leads]."""
     if df_leads is None or df_leads.empty or "especialidad" not in df_leads:
         return pd.DataFrame(columns=["especialidad", "leads"])
     s = df_leads[df_leads["especialidad"] != "Sin especificar"]["especialidad"]

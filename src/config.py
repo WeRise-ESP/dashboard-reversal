@@ -197,23 +197,33 @@ def fuente_amigable(hs_analytics_source: str) -> str:
                                hs_analytics_source.replace("_", " ").title())
 
 
-# perfil_titulacion (valor interno) -> etiqueta legible (especialidad del lead).
-PERFIL_TITULACION_LABEL = {
+# Propiedad de contacto que mejor captura la especialidad del lead (168/172
+# rellenos, frente a 4/172 de perfil_titulacion).
+HUBSPOT_PROP_PROFESION = "profesion"
+
+# profesion (texto libre en minúsculas) -> etiqueta legible de especialidad.
+PROFESION_LABEL = {
     "medico": "Médico",
-    "nutricionista_dietista": "Nutricionista / Dietista",
-    "entrenador_fisio": "Entrenador o Fisioterapeuta",
-    "enfermeria": "Enfermero/a",
-    "coach_salud": "Coach de salud",
     "otro": "Otro",
+    "coach": "Coach de salud",
+    "esteticista": "Esteticista",
+    "nutricionista": "Nutricionista",
+    "clinica": "Owner clínica",
+    "entrenador": "Entrenador",
+    "farmacia": "Farmacia",
+    "enfermeria": "Enfermería",
+    "yoga": "Yoga / Pilates",
+    "fisio": "Fisioterapeuta",
+    "osteopata": "Osteópata",
 }
 
 
 def especialidad_amigable(valor: str) -> str:
-    """perfil_titulacion crudo -> etiqueta legible (especialidad profesional)."""
+    """profesion cruda -> etiqueta legible (especialidad profesional del lead)."""
     if not valor:
         return "Sin especificar"
-    return PERFIL_TITULACION_LABEL.get(valor.strip().lower(),
-                                       valor.replace("_", " ").capitalize())
+    return PROFESION_LABEL.get(valor.strip().lower(),
+                               valor.replace("_", " ").capitalize())
 
 
 # Normaliza variantes de nombre de país (ES/EN) a una etiqueta canónica en español.

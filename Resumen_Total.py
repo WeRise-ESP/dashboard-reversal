@@ -181,20 +181,16 @@ if not cruce.empty:
 st.divider()
 
 # --------------------------------------------------------------------------- #
-# Quién está entrando — leads: país declarado, especialidad y motivos de pérdida
+# Comportamiento visitas y leads — especialidad y motivos de pérdida
 # --------------------------------------------------------------------------- #
-st.subheader("Quién está entrando")
-q1, q2, q3 = st.columns(3)
+st.subheader("Comportamiento visitas y leads")
+q1, q2 = st.columns(2)
 ui.tarjeta_ranking(
-    q1, "Leads por país", metrics.leads_por_pais(datos.leads),
-    "pais", "leads", vacio="País aún no capturado en el formulario",
-    nota="País declarado por el lead (HubSpot).")
-ui.tarjeta_ranking(
-    q2, "Especialidades (leads)", metrics.especialidades_leads(datos.leads),
+    q1, "Especialidades (leads)", metrics.especialidades_leads(datos.leads),
     "especialidad", "leads", vacio="Sin especialidad informada",
-    nota="Perfil profesional (perfil_titulacion).")
+    nota="Perfil profesional del lead (profesion).")
 ui.tarjeta_ranking(
-    q3, "Motivos de cierre perdido", metrics.motivos_cierre_perdido(datos.deals),
+    q2, "Motivos de cierre perdido", metrics.motivos_cierre_perdido(datos.deals),
     "motivo", "deals", vacio="Sin deals perdidos",
     nota="Deals en 'Cierre perdido'.")
 

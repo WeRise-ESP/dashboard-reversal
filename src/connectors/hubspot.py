@@ -131,7 +131,7 @@ def _fetch_leads(creds: dict, desde, hasta) -> pd.DataFrame:
         }],
         "properties": ["createdate", "lifecyclestage", "hs_lead_status",
                        "hs_analytics_source", "hs_analytics_source_data_1",
-                       "hs_analytics_source_data_2", config.HUBSPOT_PROP_SEGMENTO,
+                       "hs_analytics_source_data_2", config.HUBSPOT_PROP_PROFESION,
                        "pais_de_residencia", "country"],
         "limit": 100,
     }
@@ -170,7 +170,7 @@ def _fetch_leads(creds: dict, desde, hasta) -> pd.DataFrame:
                 es_matricula=(estado == "Matriculado"),
                 pais=config.pais_amigable(pais_raw),
                 especialidad=config.especialidad_amigable(
-                    p.get(config.HUBSPOT_PROP_SEGMENTO)),
+                    p.get(config.HUBSPOT_PROP_PROFESION)),
             ))
         after = data.get("paging", {}).get("next", {}).get("after")
         if not after:

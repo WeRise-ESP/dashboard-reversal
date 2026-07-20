@@ -136,7 +136,7 @@ if not cruce.empty:
 # --------------------------------------------------------------------------- #
 st.subheader("Leads por campaña")
 st.caption("Campaña derivada de `hs_analytics_source_data_1/2` de HubSpot (los UTM están vacíos).")
-por_camp = metrics.leads_por_campana(leads)
+por_camp = metrics.leads_por_campana(leads, deals)
 if not por_camp.empty:
     ui.barras(por_camp.sort_values("leads").tail(12), x="leads", y="campana",
               color=None, titulo="", orientacion="h")

@@ -27,7 +27,7 @@ r = metrics.resumen_plataforma(df).iloc[0]
 canal = config.canal_por_plataforma("Google Ads")  # "Paid Search (Google)"
 leads_ch = datos.leads[datos.leads["fuente"] == canal]
 n_leads = len(leads_ch)
-n_mat = int(leads_ch["es_matricula"].sum()) if n_leads else 0
+n_mat = metrics.matriculas_canal(datos.deals, canal)  # matrículas = deals ganados del canal
 cpl = r["coste"] / n_leads if n_leads else 0
 cpa = r["coste"] / r["conversiones"] if r["conversiones"] else 0
 conv_rate = r["conversiones"] / r["clics"] if r["clics"] else 0
@@ -90,8 +90,8 @@ st.divider()
 # Rendimiento por campaña
 # --------------------------------------------------------------------------- #
 st.subheader("Rendimiento por campaña")
-camp = metrics.enriquecer_campanas_con_hubspot(metrics.resumen_campana(df), datos.leads)
-camp = metrics.reconciliar_leads_canal(camp, datos.leads, canal)
+camp = metrics.enriquecer_campanas_con_hubspot(metrics.resumen_campana(df), datos.leads, datos.deals)
+camp = metrics.reconciliar_leads_canal(camp, datos.leads, datos.deals, canal)
 ui.barras(camp.head(10), x="coste", y="campana", color=None,
           titulo="Inversión por campaña", orientacion="h")
 

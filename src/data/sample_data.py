@@ -207,6 +207,7 @@ def hubspot_deals(desde, hasta) -> pd.DataFrame:
                 deal_id=f"D{deal_id}", fecha_creacion=f,
                 etapa_id=etapa_id, etapa=etapa,
                 programa=segmentos[r.choice(len(segmentos))],
+                campana="Sin campaña",
                 amount=0.0, es_ganado=(etapa == "Cierre ganado"),
             ))
     return pd.DataFrame(filas)

@@ -27,7 +27,7 @@ r = metrics.resumen_plataforma(df).iloc[0]
 canal = config.canal_por_plataforma("Meta Ads")  # "Paid Social (Meta)"
 leads_ch = datos.leads[datos.leads["fuente"] == canal]
 n_leads = len(leads_ch)
-n_mat = int(leads_ch["es_matricula"].sum()) if n_leads else 0
+n_mat = metrics.matriculas_canal(datos.deals, canal)  # matrículas = deals ganados del canal
 resultados = int(r["conversiones"])  # leads web reportados por Meta
 cpl = r["coste"] / n_leads if n_leads else 0
 coste_result = r["coste"] / resultados if resultados else 0
@@ -94,8 +94,8 @@ st.divider()
 # Rendimiento por campaña
 # --------------------------------------------------------------------------- #
 st.subheader("Rendimiento por campaña")
-camp = metrics.enriquecer_campanas_con_hubspot(metrics.resumen_campana(df), datos.leads)
-camp = metrics.reconciliar_leads_canal(camp, datos.leads, canal)
+camp = metrics.enriquecer_campanas_con_hubspot(metrics.resumen_campana(df), datos.leads, datos.deals)
+camp = metrics.reconciliar_leads_canal(camp, datos.leads, datos.deals, canal)
 ui.barras(camp, x="coste", y="campana", color=None,
           titulo="Inversión por campaña", orientacion="h")
 

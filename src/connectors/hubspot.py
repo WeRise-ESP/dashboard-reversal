@@ -185,28 +185,32 @@ def _fetch_deals(creds: dict, desde, hasta) -> pd.DataFrame:
         if not after:
             break
 
-    # Mapa deal -> programa vía contacto asociado (best-effort).
+    # Cada deal toma CANAL y CAMPAÑA de su contacto asociado (la matrícula se
+    # atribuye a la fuente/campaña del contacto que cerró, no del lifecyclestage).
     deal_ids = [d["id"] for d in deals]
-    prog_por_deal = _programa_por_deal(token, deal_ids) if deal_ids else {}
+    atrib = _atrib_por_deal(token, deal_ids) if deal_ids else {}
 
     filas = []
     for d in deals:
         p = d.get("properties", {})
         etapa_id = p.get("dealstage") or ""
+        canal, campana = atrib.get(d.get("id"), ("Sin asignar", "Sin campaña"))
         filas.append(dict(
             deal_id=d.get("id"),
             fecha_creacion=_a_fecha(p.get("createdate")),
             etapa_id=etapa_id,
             etapa=config.HUBSPOT_ETAPAS_MAP.get(etapa_id, etapa_id),
-            programa=prog_por_deal.get(d.get("id"), "Sin asignar"),
+            programa=canal,
+            campana=campana,
             amount=float(p.get("amount") or 0),
             es_ganado=(etapa_id == config.HUBSPOT_STAGE_MATRICULA),
         ))
     return pd.DataFrame(filas)
 
 
-def _programa_por_deal(token: str, deal_ids: list[str]) -> dict:
-    """Asocia cada deal a un segmento leyendo la propiedad de segmento del contacto."""
+def _atrib_por_deal(token: str, deal_ids: list[str]) -> dict:
+    """Devuelve {deal_id: (canal, campana)} leyendo la fuente del contacto asociado
+    a cada deal (hs_analytics_source + source_data_1/2)."""
     import requests
 
     # 1) deal -> contacto (associations v4 batch)
@@ -231,22 +235,28 @@ def _programa_por_deal(token: str, deal_ids: list[str]) -> dict:
     if not contact_ids:
         return {}
 
-    # 2) contacto -> canal/fuente (batch read de hs_analytics_source)
+    # 2) contacto -> fuente + desglose (batch read)
     try:
         r = requests.post(
             f"{API}/crm/v3/objects/contacts/batch/read",
             headers=_headers(token),
-            json={"properties": ["hs_analytics_source"],
+            json={"properties": ["hs_analytics_source", "hs_analytics_source_data_1",
+                                 "hs_analytics_source_data_2"],
                   "inputs": [{"id": c} for c in contact_ids]}, timeout=60)
         r.raise_for_status()
-        fuente_por_contacto = {
-            str(c["id"]): (c.get("properties", {}).get("hs_analytics_source") or "")
-            for c in r.json().get("results", [])
+        props_por_contacto = {
+            str(c["id"]): c.get("properties", {}) for c in r.json().get("results", [])
         }
     except Exception:  # noqa: BLE001
         return {}
 
-    return {
-        did: config.fuente_amigable(fuente_por_contacto.get(cid, ""))
-        for did, cid in deal_to_contact.items()
-    }
+    out = {}
+    for did, cid in deal_to_contact.items():
+        p = props_por_contacto.get(cid, {})
+        src = p.get("hs_analytics_source") or ""
+        out[did] = (
+            config.fuente_amigable(src),
+            config.campana_hubspot(src, p.get("hs_analytics_source_data_1"),
+                                   p.get("hs_analytics_source_data_2")),
+        )
+    return out

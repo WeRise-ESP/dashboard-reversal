@@ -137,6 +137,24 @@ def matriculas_por_programa(df_deals: pd.DataFrame) -> pd.DataFrame:
     return ganados.groupby("programa", as_index=False).agg(matriculas=("deal_id", "count"))
 
 
+def matriculas_por_campana(df_deals: pd.DataFrame) -> pd.DataFrame:
+    """Cuenta matrículas (deals ganados) por CAMPAÑA del deal (deal.campana)."""
+    if df_deals is None or df_deals.empty or "campana" not in df_deals:
+        return pd.DataFrame(columns=["campana", "matriculas"])
+    won = df_deals[df_deals["es_ganado"] == True]  # noqa: E712
+    if won.empty:
+        return pd.DataFrame(columns=["campana", "matriculas"])
+    return won.groupby("campana", as_index=False).agg(matriculas=("deal_id", "count"))
+
+
+def matriculas_canal(df_deals: pd.DataFrame, canal: str) -> int:
+    """Nº de matrículas (deals ganados) atribuidas a un canal (deal.programa)."""
+    if df_deals is None or df_deals.empty or "programa" not in df_deals:
+        return 0
+    return int(((df_deals["es_ganado"] == True) &  # noqa: E712
+                (df_deals["programa"] == canal)).sum())
+
+
 def ingresos_por_programa(df_deals: pd.DataFrame) -> pd.DataFrame:
     """Ingresos REALES (amount de deals ganados) por canal/programa."""
     if df_deals is None or df_deals.empty or "amount" not in df_deals:
@@ -491,38 +509,41 @@ def evolucion_campana_semanal(df_plat: pd.DataFrame, df_leads: pd.DataFrame | No
     return {"df": df, "semanas": labels}
 
 
-def enriquecer_campanas_con_hubspot(camp: pd.DataFrame,
-                                    df_leads: pd.DataFrame) -> pd.DataFrame:
-    """Añade columnas `leads` y `matriculas` (de HubSpot) a una tabla de campañas
-    de ads, casando por nombre de campaña normalizado. Si el nombre de la campaña
-    de ads no aparece en HubSpot, quedan a 0."""
-    if camp.empty:
+def _mapa_matriculas_campana(df_deals: pd.DataFrame | None) -> dict:
+    """{campana normalizada: matrículas} desde los deals ganados."""
+    mc = matriculas_por_campana(df_deals)
+    return {_norm_campana(r["campana"]): int(r["matriculas"]) for _, r in mc.iterrows()} if not mc.empty else {}
+
+
+def enriquecer_campanas_con_hubspot(camp: pd.DataFrame, df_leads: pd.DataFrame,
+                                    df_deals: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Añade `leads` (contactos de HubSpot) y `matriculas` (deals GANADOS) a una
+    tabla de campañas de ads, casando por nombre de campaña normalizado.
+
+    Importante: las matrículas se cuentan por **deal ganado** (no por contactos con
+    lifecyclestage=cliente), para no duplicar ni atribuir mal la matrícula real."""
+    if camp is None or camp.empty:
         return camp
     camp = camp.copy()
-    if df_leads is None or df_leads.empty or "campana" not in df_leads:
-        camp["leads"] = 0
-        camp["matriculas"] = 0
-        return camp
-    g = df_leads.copy()
-    g["k"] = g["campana"].map(_norm_campana)
-    agg = g.groupby("k").agg(leads=("lead_id", "count"),
-                             matriculas=("es_matricula", "sum"))
-    mp = {k: (int(v.leads), int(v.matriculas)) for k, v in agg.iterrows()}
-    camp["leads"] = camp["campana"].map(lambda c: mp.get(_norm_campana(c), (0, 0))[0])
-    camp["matriculas"] = camp["campana"].map(lambda c: mp.get(_norm_campana(c), (0, 0))[1])
+    leads_map = {}
+    if df_leads is not None and not df_leads.empty and "campana" in df_leads:
+        g = df_leads.copy()
+        g["k"] = g["campana"].map(_norm_campana)
+        leads_map = {k: int(v) for k, v in g.groupby("k")["lead_id"].count().items()}
+    mat_map = _mapa_matriculas_campana(df_deals)
+    camp["leads"] = camp["campana"].map(lambda c: leads_map.get(_norm_campana(c), 0))
+    camp["matriculas"] = camp["campana"].map(lambda c: mat_map.get(_norm_campana(c), 0))
     return camp
 
 
 def reconciliar_leads_canal(camp: pd.DataFrame, df_leads: pd.DataFrame,
-                            canal: str) -> pd.DataFrame:
-    """Añade una fila '(Sin campaña)' con los leads del CANAL que no casaron con
-    ninguna campaña, para que el total de la tabla por campaña cuadre con el total
-    del canal (algunos leads de pago no traen campaña identificable en HubSpot)."""
+                            df_deals: pd.DataFrame | None, canal: str) -> pd.DataFrame:
+    """Añade una fila '(Sin campaña)' con los leads (y matrículas) del CANAL que no
+    casaron con ninguna campaña, para que el total cuadre con el total del canal."""
     if camp is None or camp.empty or df_leads is None or df_leads.empty:
         return camp
-    lc = df_leads[df_leads["fuente"] == canal]
-    n_canal = len(lc)
-    m_canal = int(lc["es_matricula"].sum()) if n_canal else 0
+    n_canal = int((df_leads["fuente"] == canal).sum())
+    m_canal = matriculas_canal(df_deals, canal)  # matrículas = deals ganados del canal
     resto = n_canal - int(camp["leads"].sum())
     resto_m = m_canal - int(camp["matriculas"].sum())
     if resto <= 0 and resto_m <= 0:
@@ -533,13 +554,17 @@ def reconciliar_leads_canal(camp: pd.DataFrame, df_leads: pd.DataFrame,
     return pd.concat([camp, pd.DataFrame([fila])], ignore_index=True)
 
 
-def leads_por_campana(df_leads: pd.DataFrame) -> pd.DataFrame:
-    """Cuenta leads y matrículas por nombre de campaña (derivado de HubSpot)."""
-    if df_leads.empty or "campana" not in df_leads:
+def leads_por_campana(df_leads: pd.DataFrame,
+                      df_deals: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Leads (contactos) por campaña + matrículas (deals GANADOS) por campaña."""
+    if df_leads is None or df_leads.empty or "campana" not in df_leads:
         return pd.DataFrame()
-    g = df_leads.groupby("campana", as_index=False).agg(
-        leads=("lead_id", "count"),
-        matriculas=("es_matricula", "sum"),
-    )
-    g["matriculas"] = g["matriculas"].astype(int)
-    return g.sort_values("leads", ascending=False)
+    g = df_leads.groupby("campana", as_index=False).agg(leads=("lead_id", "count"))
+    mc = matriculas_por_campana(df_deals)
+    if not mc.empty:
+        g = g.merge(mc, on="campana", how="outer")
+    if "matriculas" not in g:
+        g["matriculas"] = 0
+    g["leads"] = g["leads"].fillna(0).astype(int)
+    g["matriculas"] = g["matriculas"].fillna(0).astype(int)
+    return g.sort_values("leads", ascending=False).reset_index(drop=True)

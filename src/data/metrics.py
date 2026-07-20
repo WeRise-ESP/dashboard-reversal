@@ -616,17 +616,17 @@ def _visitas_geo(ga4_extra: dict, clave: str, dim: str, top: int) -> pd.DataFram
     return df.sort_values("sesiones", ascending=False).head(top)[[dim, "sesiones"]]
 
 
-def visitas_por_pais(ga4_extra: dict, top: int = 8) -> pd.DataFrame:
+def visitas_por_pais(ga4_extra: dict, top: int = 15) -> pd.DataFrame:
     """Sesiones por país (GA4). Devuelve [pais, sesiones]."""
     return _visitas_geo(ga4_extra, "paises", "pais", top)
 
 
-def visitas_por_region(ga4_extra: dict, top: int = 8) -> pd.DataFrame:
+def visitas_por_region(ga4_extra: dict, top: int = 15) -> pd.DataFrame:
     """Sesiones por región/comunidad (GA4). Devuelve [region, sesiones]."""
     return _visitas_geo(ga4_extra, "regiones", "region", top)
 
 
-def visitas_por_ciudad(ga4_extra: dict, top: int = 8) -> pd.DataFrame:
+def visitas_por_ciudad(ga4_extra: dict, top: int = 15) -> pd.DataFrame:
     """Sesiones por ciudad (GA4). Devuelve [ciudad, sesiones]."""
     return _visitas_geo(ga4_extra, "ciudades", "ciudad", top)
 
@@ -639,7 +639,7 @@ def leads_por_pais(df_leads: pd.DataFrame, top: int = 8) -> pd.DataFrame:
     return _ranking(s, "pais", "leads", top)
 
 
-def especialidades_leads(df_leads: pd.DataFrame, top: int = 10) -> pd.DataFrame:
+def especialidades_leads(df_leads: pd.DataFrame, top: int = 30) -> pd.DataFrame:
     """Nº de leads por especialidad (profesion). Devuelve [especialidad, leads]."""
     if df_leads is None or df_leads.empty or "especialidad" not in df_leads:
         return pd.DataFrame(columns=["especialidad", "leads"])
@@ -647,7 +647,7 @@ def especialidades_leads(df_leads: pd.DataFrame, top: int = 10) -> pd.DataFrame:
     return _ranking(s, "especialidad", "leads", top)
 
 
-def motivos_cierre_perdido(df_deals: pd.DataFrame, top: int = 8) -> pd.DataFrame:
+def motivos_cierre_perdido(df_deals: pd.DataFrame, top: int = 20) -> pd.DataFrame:
     """Nº de deals perdidos por motivo (closed_lost_reason). Devuelve [motivo, deals]."""
     if df_deals is None or df_deals.empty or "es_perdido" not in df_deals:
         return pd.DataFrame(columns=["motivo", "deals"])

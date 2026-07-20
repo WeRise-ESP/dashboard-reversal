@@ -207,7 +207,7 @@ def _dispositivo(client, prop, desde, hasta) -> pd.DataFrame:
 def _paises(client, prop, desde, hasta) -> pd.DataFrame:
     """Sesiones y usuarios por país (visitas del sitio, top 8)."""
     r = _run(client, prop, ["country"],
-             ["sessions", "totalUsers"], desde, hasta, limit=8, order="sessions")
+             ["sessions", "totalUsers"], desde, hasta, limit=15, order="sessions")
     filas = []
     for row in r.rows:
         filas.append(dict(
@@ -221,7 +221,7 @@ def _paises(client, prop, desde, hasta) -> pd.DataFrame:
 def _regiones(client, prop, desde, hasta) -> pd.DataFrame:
     """Sesiones y usuarios por región/comunidad (top 8)."""
     r = _run(client, prop, ["region"],
-             ["sessions", "totalUsers"], desde, hasta, limit=8, order="sessions")
+             ["sessions", "totalUsers"], desde, hasta, limit=15, order="sessions")
     filas = []
     for row in r.rows:
         filas.append(dict(
@@ -235,7 +235,7 @@ def _regiones(client, prop, desde, hasta) -> pd.DataFrame:
 def _ciudades(client, prop, desde, hasta) -> pd.DataFrame:
     """Sesiones y usuarios por ciudad (top 8)."""
     r = _run(client, prop, ["city"],
-             ["sessions", "totalUsers"], desde, hasta, limit=8, order="sessions")
+             ["sessions", "totalUsers"], desde, hasta, limit=15, order="sessions")
     filas = []
     for row in r.rows:
         filas.append(dict(

@@ -351,9 +351,13 @@ def _esc(s) -> str:
 
 def tarjeta_ranking(col, titulo: str, df: pd.DataFrame, etiqueta_col: str,
                     valor_col: str, vacio: str = "Sin datos aún",
-                    nota: str | None = None) -> None:
+                    nota: str | None = None, filas_visibles: int = 7) -> None:
     """Tarjeta con título y lista de filas: etiqueta · mini-barra · valor.
-    La barra se escala al valor máximo de la lista. Estilo tema Reversal (claro)."""
+
+    La lista muestra ~`filas_visibles` filas y, si hay más, activa scroll interno
+    (misma altura en todas las tarjetas de la fila; en móvil el scroll es táctil).
+    La barra se escala al valor máximo de la lista."""
+    n = 0 if df is None else len(df)
     filas_html = ""
     if df is None or df.empty:
         filas_html = (f'<div style="color:{TEMA.gris_uvic}; font-size:.85rem; '
@@ -378,13 +382,21 @@ def tarjeta_ranking(col, titulo: str, df: pd.DataFrame, etiqueta_col: str,
                 f'{num(v, 0)}</span>'
                 f'</div>'
             )
+    # Cuerpo con scroll cuando hay más filas de las visibles (~2rem por fila).
+    hay_scroll = n > filas_visibles
+    alto = f"max-height:{filas_visibles * 2.0:.1f}rem; overflow-y:auto; " \
+           "overscroll-behavior:contain; padding-right:.35rem;" if hay_scroll else ""
+    cuerpo = f'<div style="{alto}">{filas_html}</div>'
+    mas = (f' · <span style="color:{TEMA.primario};">desliza para ver {n - filas_visibles} más</span>'
+           if hay_scroll else "")
+    nota_txt = (_esc(nota) + mas) if nota else (mas[3:] if mas else "")
     nota_html = (f'<div style="margin-top:.5rem; font-size:.72rem; '
-                 f'color:{TEMA.gris_uvic};">{_esc(nota)}</div>') if nota else ""
+                 f'color:{TEMA.gris_uvic};">{nota_txt}</div>') if nota_txt else ""
     col.markdown(
         f'<div style="border:1px solid {TEMA.primario}22; border-radius:12px; '
         f'padding:.9rem 1rem; background:#fff; height:100%;">'
         f'<div style="font-size:.72rem; letter-spacing:.06em; text-transform:uppercase; '
         f'font-weight:700; color:{TEMA.gris_uvic}; margin-bottom:.6rem;">'
-        f'{_esc(titulo)}</div>{filas_html}{nota_html}</div>',
+        f'{_esc(titulo)}</div>{cuerpo}{nota_html}</div>',
         unsafe_allow_html=True,
     )

@@ -118,7 +118,8 @@ def _fetch_leads(creds: dict, desde, hasta) -> pd.DataFrame:
         }],
         "properties": ["createdate", "lifecyclestage", "hs_lead_status",
                        "hs_analytics_source", "hs_analytics_source_data_1",
-                       "hs_analytics_source_data_2", config.HUBSPOT_PROP_SEGMENTO],
+                       "hs_analytics_source_data_2", config.HUBSPOT_PROP_SEGMENTO,
+                       "ip_country"],
         "limit": 100,
     }
     filas, after = [], None
@@ -138,6 +139,7 @@ def _fetch_leads(creds: dict, desde, hasta) -> pd.DataFrame:
                 p.get("hs_analytics_source_data_2"),
             )
             estado = MAPA_LIFECYCLE.get((p.get("lifecyclestage") or "").lower(), "Lead")
+            pais = (p.get("ip_country") or "").strip()
             filas.append(dict(
                 lead_id=c.get("id"),
                 fecha_creacion=_a_fecha(p.get("createdate")),
@@ -147,6 +149,9 @@ def _fetch_leads(creds: dict, desde, hasta) -> pd.DataFrame:
                 nivel="",
                 estado=estado,
                 es_matricula=(estado == "Matriculado"),
+                pais=pais.title() if pais else "Sin país",
+                especialidad=config.especialidad_amigable(
+                    p.get(config.HUBSPOT_PROP_SEGMENTO)),
             ))
         after = data.get("paging", {}).get("next", {}).get("after")
         if not after:
@@ -169,7 +174,8 @@ def _fetch_deals(creds: dict, desde, hasta) -> pd.DataFrame:
                  "value": str(_ms(hasta + timedelta(days=1)))},
             ]
         }],
-        "properties": ["dealstage", "amount", "createdate", "dealname"],
+        "properties": ["dealstage", "amount", "createdate", "dealname",
+                       "closed_lost_reason"],
         "limit": 100,
     }
     deals, after = [], None
@@ -195,6 +201,7 @@ def _fetch_deals(creds: dict, desde, hasta) -> pd.DataFrame:
         p = d.get("properties", {})
         etapa_id = p.get("dealstage") or ""
         canal, campana = atrib.get(d.get("id"), ("Sin asignar", "Sin campaña"))
+        motivo = (p.get("closed_lost_reason") or "").strip()
         filas.append(dict(
             deal_id=d.get("id"),
             fecha_creacion=_a_fecha(p.get("createdate")),
@@ -204,6 +211,8 @@ def _fetch_deals(creds: dict, desde, hasta) -> pd.DataFrame:
             campana=campana,
             amount=float(p.get("amount") or 0),
             es_ganado=(etapa_id == config.HUBSPOT_STAGE_MATRICULA),
+            es_perdido=(etapa_id == "closedlost"),
+            motivo_perdido=motivo or "Sin motivo indicado",
         ))
     return pd.DataFrame(filas)
 

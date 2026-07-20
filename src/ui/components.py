@@ -340,3 +340,51 @@ def donut(df: pd.DataFrame, nombres: str, valores: str, titulo: str) -> None:
         paper_bgcolor="rgba(0,0,0,0)",
     )
     st.plotly_chart(fig, width='stretch')
+
+
+# --------------------------------------------------------------------------- #
+# Tarjeta "ranking" con mini-barras (país, especialidad, motivo…)
+# --------------------------------------------------------------------------- #
+def _esc(s) -> str:
+    return (str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+
+
+def tarjeta_ranking(col, titulo: str, df: pd.DataFrame, etiqueta_col: str,
+                    valor_col: str, vacio: str = "Sin datos aún",
+                    nota: str | None = None) -> None:
+    """Tarjeta con título y lista de filas: etiqueta · mini-barra · valor.
+    La barra se escala al valor máximo de la lista. Estilo tema Reversal (claro)."""
+    filas_html = ""
+    if df is None or df.empty:
+        filas_html = (f'<div style="color:{TEMA.gris_uvic}; font-size:.85rem; '
+                      f'padding:.4rem 0;">{_esc(vacio)}</div>')
+    else:
+        vmax = max(int(df[valor_col].max()), 1)
+        for _, r in df.iterrows():
+            v = int(r[valor_col])
+            ancho = max(4, round(v / vmax * 100))
+            filas_html += (
+                f'<div style="display:flex; align-items:center; gap:.5rem; '
+                f'padding:.28rem 0;">'
+                f'<span style="flex:0 0 42%; font-size:.82rem; color:{TEMA.texto}; '
+                f'white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" '
+                f'title="{_esc(r[etiqueta_col])}">{_esc(r[etiqueta_col])}</span>'
+                f'<span style="flex:1; height:8px; background:{TEMA.papel_2}; '
+                f'border-radius:5px; overflow:hidden;">'
+                f'<span style="display:block; width:{ancho}%; height:100%; '
+                f'background:{TEMA.primario}; border-radius:5px;"></span></span>'
+                f'<span style="flex:0 0 auto; font-size:.82rem; font-weight:700; '
+                f'color:{TEMA.texto}; min-width:2.2rem; text-align:right;">'
+                f'{num(v, 0)}</span>'
+                f'</div>'
+            )
+    nota_html = (f'<div style="margin-top:.5rem; font-size:.72rem; '
+                 f'color:{TEMA.gris_uvic};">{_esc(nota)}</div>') if nota else ""
+    col.markdown(
+        f'<div style="border:1px solid {TEMA.primario}22; border-radius:12px; '
+        f'padding:.9rem 1rem; background:#fff; height:100%;">'
+        f'<div style="font-size:.72rem; letter-spacing:.06em; text-transform:uppercase; '
+        f'font-weight:700; color:{TEMA.gris_uvic}; margin-bottom:.6rem;">'
+        f'{_esc(titulo)}</div>{filas_html}{nota_html}</div>',
+        unsafe_allow_html=True,
+    )

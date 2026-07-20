@@ -148,8 +148,14 @@ def ga4_extra(desde, hasta) -> dict:
         {"tipo": "Nuevos", "sesiones": int(ses * 0.72), "usuarios": int(ses * 0.7)},
         {"tipo": "Recurrentes", "sesiones": int(ses * 0.28), "usuarios": int(ses * 0.12)},
     ])
+    paises = pd.DataFrame([
+        {"pais": p, "sesiones": s, "usuarios": int(s * 0.82)}
+        for p, s in [("Spain", 1363), ("United States", 213), ("Sweden", 56),
+                     ("Ireland", 31), ("(no definido)", 22),
+                     ("United Arab Emirates", 8), ("India", 6), ("Argentina", 5)]
+    ])
     return {"origen": "sample", "totales": totales, "paginas": paginas,
-            "dispositivo": dispositivo, "nuevos": nuevos}
+            "dispositivo": dispositivo, "nuevos": nuevos, "paises": paises}
 
 
 # --------------------------------------------------------------------------- #
@@ -168,6 +174,11 @@ def hubspot_leads(desde, hasta) -> pd.DataFrame:
     campanas = ["nac - longevidad y healthspan", "test mestral — entrenadores",
                 "test mestral — coach", "test mestral — video", "Sin campaña"]
     prob_campana = [0.55, 0.15, 0.12, 0.10, 0.08]
+    paises = ["France", "United Kingdom", "Spain", "Mexico", "Indonesia", "Sin país"]
+    prob_pais = [0.55, 0.17, 0.15, 0.05, 0.03, 0.05]
+    especialidades = ["Médico", "Nutricionista / Dietista", "Entrenador o Fisioterapeuta",
+                       "Enfermero/a", "Coach de salud", "Otro", "Sin especificar"]
+    prob_esp = [0.22, 0.14, 0.12, 0.08, 0.14, 0.20, 0.10]
 
     lead_id = 1000
     for f in fechas:
@@ -182,6 +193,8 @@ def hubspot_leads(desde, hasta) -> pd.DataFrame:
                 fuente=fuente, campana=campana, programa=fuente,
                 nivel="Profesional", estado=estado,
                 es_matricula=(estado == "Matriculado"),
+                pais=paises[r.choice(len(paises), p=prob_pais)],
+                especialidad=especialidades[r.choice(len(especialidades), p=prob_esp)],
             ))
     return pd.DataFrame(filas)
 
@@ -195,6 +208,9 @@ def hubspot_deals(desde, hasta) -> pd.DataFrame:
     etapas = HUBSPOT_ETAPAS_UVIC  # [(id, label), ...] en orden de embudo
     prob = [0.55, 0.18, 0.12, 0.08, 0.07]
     segmentos = [p.nombre for p in SEGMENTOS]
+    motivos = ["Precio", "Sin respuesta", "Eligió otra formación", "Timing",
+               "Sin motivo indicado"]
+    prob_mot = [0.25, 0.30, 0.15, 0.10, 0.20]
     filas = []
     deal_id = 5000
     for f in fechas:
@@ -202,6 +218,7 @@ def hubspot_deals(desde, hasta) -> pd.DataFrame:
         for _ in range(max(0, n_dia)):
             i = r.choice(len(etapas), p=prob)
             etapa_id, etapa = etapas[i]
+            perdido = (etapa == "Cierre perdido")
             deal_id += 1
             filas.append(dict(
                 deal_id=f"D{deal_id}", fecha_creacion=f,
@@ -209,5 +226,8 @@ def hubspot_deals(desde, hasta) -> pd.DataFrame:
                 programa=segmentos[r.choice(len(segmentos))],
                 campana="Sin campaña",
                 amount=0.0, es_ganado=(etapa == "Cierre ganado"),
+                es_perdido=perdido,
+                motivo_perdido=(motivos[r.choice(len(motivos), p=prob_mot)]
+                                if perdido else "Sin motivo indicado"),
             ))
     return pd.DataFrame(filas)

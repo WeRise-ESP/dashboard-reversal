@@ -177,3 +177,27 @@ if not cruce.empty:
         "Cruce por **canal** (todos, no solo pago): Google Ads → Paid Search, Meta → "
         "Paid Social; el resto viene de `hs_analytics_source` y no tiene inversión."
     )
+
+st.divider()
+
+# --------------------------------------------------------------------------- #
+# Quién está entrando — país, especialidad y motivos de pérdida
+# --------------------------------------------------------------------------- #
+st.subheader("Quién está entrando")
+q1, q2, q3, q4 = st.columns(4)
+ui.tarjeta_ranking(
+    q1, "Visitas por país", metrics.visitas_por_pais(datos.ga4_extra),
+    "pais", "sesiones", vacio="Sin visitas registradas",
+    nota="Sesiones del sitio (GA4).")
+ui.tarjeta_ranking(
+    q2, "Leads por país", metrics.leads_por_pais(datos.leads),
+    "pais", "leads", vacio="Sin país en los leads",
+    nota="País de los contactos (IP, HubSpot).")
+ui.tarjeta_ranking(
+    q3, "Especialidades (leads)", metrics.especialidades_leads(datos.leads),
+    "especialidad", "leads", vacio="Sin especialidad informada",
+    nota="Perfil profesional (perfil_titulacion).")
+ui.tarjeta_ranking(
+    q4, "Motivos de cierre perdido", metrics.motivos_cierre_perdido(datos.deals),
+    "motivo", "deals", vacio="Sin deals perdidos",
+    nota="Deals en 'Cierre perdido'.")

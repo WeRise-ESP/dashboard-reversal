@@ -591,3 +591,55 @@ def leads_por_campana(df_leads: pd.DataFrame,
     g["leads"] = g["leads"].fillna(0).astype(int)
     g["matriculas"] = g["matriculas"].fillna(0).astype(int)
     return g.sort_values("leads", ascending=False).reset_index(drop=True)
+
+
+# --------------------------------------------------------------------------- #
+# "Quién está entrando" — rankings de país, especialidad y motivo de pérdida
+# --------------------------------------------------------------------------- #
+def _ranking(serie: pd.Series, etiqueta: str, valor: str, top: int) -> pd.DataFrame:
+    """value_counts -> DataFrame [etiqueta, valor] ordenado desc, top N."""
+    vc = serie.value_counts()
+    if vc.empty:
+        return pd.DataFrame(columns=[etiqueta, valor])
+    out = vc.head(top).reset_index()
+    out.columns = [etiqueta, valor]
+    return out
+
+
+def visitas_por_pais(ga4_extra: dict, top: int = 8) -> pd.DataFrame:
+    """Sesiones por país (GA4). Devuelve [pais, sesiones]."""
+    if not ga4_extra:
+        return pd.DataFrame(columns=["pais", "sesiones"])
+    df = ga4_extra.get("paises")
+    if df is None or df.empty:
+        return pd.DataFrame(columns=["pais", "sesiones"])
+    return df.sort_values("sesiones", ascending=False).head(top)[["pais", "sesiones"]]
+
+
+def leads_por_pais(df_leads: pd.DataFrame, top: int = 8) -> pd.DataFrame:
+    """Nº de leads (contactos) por país (ip_country). Devuelve [pais, leads]."""
+    if df_leads is None or df_leads.empty or "pais" not in df_leads:
+        return pd.DataFrame(columns=["pais", "leads"])
+    s = df_leads[df_leads["pais"] != "Sin país"]["pais"]
+    return _ranking(s, "pais", "leads", top)
+
+
+def especialidades_leads(df_leads: pd.DataFrame, top: int = 10) -> pd.DataFrame:
+    """Nº de leads por especialidad (perfil_titulacion). Devuelve [especialidad, leads]."""
+    if df_leads is None or df_leads.empty or "especialidad" not in df_leads:
+        return pd.DataFrame(columns=["especialidad", "leads"])
+    s = df_leads[df_leads["especialidad"] != "Sin especificar"]["especialidad"]
+    return _ranking(s, "especialidad", "leads", top)
+
+
+def motivos_cierre_perdido(df_deals: pd.DataFrame, top: int = 8) -> pd.DataFrame:
+    """Nº de deals perdidos por motivo (closed_lost_reason). Devuelve [motivo, deals]."""
+    if df_deals is None or df_deals.empty or "es_perdido" not in df_deals:
+        return pd.DataFrame(columns=["motivo", "deals"])
+    perdidos = df_deals[df_deals["es_perdido"] == True]  # noqa: E712
+    if perdidos.empty:
+        return pd.DataFrame(columns=["motivo", "deals"])
+    col = "motivo_perdido" if "motivo_perdido" in perdidos else None
+    if col is None:
+        return pd.DataFrame(columns=["motivo", "deals"])
+    return _ranking(perdidos[col], "motivo", "deals", top)

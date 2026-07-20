@@ -197,6 +197,25 @@ def fuente_amigable(hs_analytics_source: str) -> str:
                                hs_analytics_source.replace("_", " ").title())
 
 
+# perfil_titulacion (valor interno) -> etiqueta legible (especialidad del lead).
+PERFIL_TITULACION_LABEL = {
+    "medico": "Médico",
+    "nutricionista_dietista": "Nutricionista / Dietista",
+    "entrenador_fisio": "Entrenador o Fisioterapeuta",
+    "enfermeria": "Enfermero/a",
+    "coach_salud": "Coach de salud",
+    "otro": "Otro",
+}
+
+
+def especialidad_amigable(valor: str) -> str:
+    """perfil_titulacion crudo -> etiqueta legible (especialidad profesional)."""
+    if not valor:
+        return "Sin especificar"
+    return PERFIL_TITULACION_LABEL.get(valor.strip().lower(),
+                                       valor.replace("_", " ").capitalize())
+
+
 # Nexo ads <-> leads: cada plataforma publicitaria corresponde a un canal de
 # hs_analytics_source, de modo que la inversión se cruza con los leads por canal.
 PLATAFORMA_CANAL = {

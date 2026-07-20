@@ -126,6 +126,7 @@ def obtener_extra(desde, hasta) -> dict:
                 "paginas": _paginas(client, prop, desde, hasta),
                 "dispositivo": _dispositivo(client, prop, desde, hasta),
                 "nuevos": _nuevos(client, prop, desde, hasta),
+                "paises": _paises(client, prop, desde, hasta),
             }
         except Exception:  # noqa: BLE001
             pass
@@ -183,6 +184,20 @@ def _dispositivo(client, prop, desde, hasta) -> pd.DataFrame:
             sesiones=int(m[0].value or 0),
             usuarios=int(m[1].value or 0),
             conversiones=int(float(m[2].value or 0)),
+        ))
+    return pd.DataFrame(filas)
+
+
+def _paises(client, prop, desde, hasta) -> pd.DataFrame:
+    """Sesiones y usuarios por país (visitas del sitio, top 8)."""
+    r = _run(client, prop, ["country"],
+             ["sessions", "totalUsers"], desde, hasta, limit=8, order="sessions")
+    filas = []
+    for row in r.rows:
+        filas.append(dict(
+            pais=row.dimension_values[0].value or "(no definido)",
+            sesiones=int(row.metric_values[0].value or 0),
+            usuarios=int(row.metric_values[1].value or 0),
         ))
     return pd.DataFrame(filas)
 

@@ -96,10 +96,16 @@ ui.barras(camp.head(10), x="coste", y="campana", color=None,
           titulo="Inversión por campaña", orientacion="h")
 
 tabla_camp = metrics.con_fila_total(
-    camp[["campana", "impresiones", "clics", "ctr", "cpc", "coste", "conversiones", "leads", "matriculas"]].copy(),
+    camp[["campana", "impresiones", "clics", "ctr", "cpc", "coste", "conversiones",
+          "leads", "matriculas", "ingresos"]].assign(
+        cp_matricula=camp["coste"] / camp["matriculas"].replace(0, pd.NA),
+        roas=camp["ingresos"] / camp["coste"].replace(0, pd.NA),
+    ).fillna(0).copy(),
     "campana", ratios={
         "ctr": lambda s, _: (s["clics"] / s["impresiones"]) if s["impresiones"] else 0,
         "cpc": lambda s, _: (s["coste"] / s["clics"]) if s["clics"] else 0,
+        "cp_matricula": lambda s, _: (s["coste"] / s["matriculas"]) if s["matriculas"] else 0,
+        "roas": lambda s, _: (s["ingresos"] / s["coste"]) if s["coste"] else 0,
     })
 ui.tabla(tabla_camp, [
     {"key": "campana", "label": "Campaña", "align": "l"},
@@ -111,10 +117,14 @@ ui.tabla(tabla_camp, [
     {"key": "conversiones", "label": "Conv. (Ads)", "fmt": lambda v: num(v, 0)},
     {"key": "leads", "label": "Leads (HS)", "fmt": lambda v: num(v, 0)},
     {"key": "matriculas", "label": "Matrículas", "fmt": lambda v: num(v, 0)},
+    {"key": "cp_matricula", "label": "Coste/matríc.", "fmt": lambda v: eur(v, 0) if v else "—"},
+    {"key": "roas", "label": "ROAS", "fmt": lambda v: f"{num(v, 2)}×" if v else "—"},
 ], etiqueta_col="campana")
 st.caption(
-    "**Conv. (Ads)** = conversiones que reporta Google Ads. **Leads (HS)** y "
-    "**Matrículas** vienen de HubSpot casando por nombre de campaña (0 si no casa)."
+    "**Conv. (Ads)** = conversiones que reporta Google Ads. **Leads (HS)**, "
+    "**Matrículas** e **ingresos** (para el ROAS) vienen de HubSpot casando por "
+    "nombre de campaña. **ROAS** = ingresos reales de matrículas ÷ inversión "
+    "(aparece en cuanto entra la primera matrícula atribuida a la campaña)."
 )
 
 st.divider()

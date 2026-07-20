@@ -165,6 +165,16 @@ def ingresos_por_programa(df_deals: pd.DataFrame) -> pd.DataFrame:
     return won.groupby("programa", as_index=False).agg(ingresos=("amount", "sum"))
 
 
+def ingresos_por_campana(df_deals: pd.DataFrame) -> pd.DataFrame:
+    """Ingresos REALES (amount de deals ganados) por CAMPAÑA del deal."""
+    if df_deals is None or df_deals.empty or "amount" not in df_deals or "campana" not in df_deals:
+        return pd.DataFrame(columns=["campana", "ingresos"])
+    won = df_deals[df_deals["es_ganado"] == True]  # noqa: E712
+    if won.empty:
+        return pd.DataFrame(columns=["campana", "ingresos"])
+    return won.groupby("campana", as_index=False).agg(ingresos=("amount", "sum"))
+
+
 def cruce_inversion_leads(df_ads: pd.DataFrame, df_leads: pd.DataFrame,
                           df_deals: pd.DataFrame | None = None) -> pd.DataFrame:
     """Une, POR CANAL, inversión (Google+Meta) con leads y matrículas (HubSpot),
@@ -515,6 +525,12 @@ def _mapa_matriculas_campana(df_deals: pd.DataFrame | None) -> dict:
     return {_norm_campana(r["campana"]): int(r["matriculas"]) for _, r in mc.iterrows()} if not mc.empty else {}
 
 
+def _mapa_ingresos_campana(df_deals: pd.DataFrame | None) -> dict:
+    """{campana normalizada: ingresos €} desde los deals ganados."""
+    ic = ingresos_por_campana(df_deals)
+    return {_norm_campana(r["campana"]): float(r["ingresos"]) for _, r in ic.iterrows()} if not ic.empty else {}
+
+
 def enriquecer_campanas_con_hubspot(camp: pd.DataFrame, df_leads: pd.DataFrame,
                                     df_deals: pd.DataFrame | None = None) -> pd.DataFrame:
     """Añade `leads` (contactos de HubSpot) y `matriculas` (deals GANADOS) a una
@@ -531,8 +547,10 @@ def enriquecer_campanas_con_hubspot(camp: pd.DataFrame, df_leads: pd.DataFrame,
         g["k"] = g["campana"].map(_norm_campana)
         leads_map = {k: int(v) for k, v in g.groupby("k")["lead_id"].count().items()}
     mat_map = _mapa_matriculas_campana(df_deals)
+    ing_map = _mapa_ingresos_campana(df_deals)
     camp["leads"] = camp["campana"].map(lambda c: leads_map.get(_norm_campana(c), 0))
     camp["matriculas"] = camp["campana"].map(lambda c: mat_map.get(_norm_campana(c), 0))
+    camp["ingresos"] = camp["campana"].map(lambda c: ing_map.get(_norm_campana(c), 0.0))
     return camp
 
 
@@ -544,13 +562,18 @@ def reconciliar_leads_canal(camp: pd.DataFrame, df_leads: pd.DataFrame,
         return camp
     n_canal = int((df_leads["fuente"] == canal).sum())
     m_canal = matriculas_canal(df_deals, canal)  # matrículas = deals ganados del canal
+    ing_map = ingresos_por_programa(df_deals if df_deals is not None else pd.DataFrame())
+    i_canal = float(ing_map.loc[ing_map["programa"] == canal, "ingresos"].sum()) if not ing_map.empty else 0.0
     resto = n_canal - int(camp["leads"].sum())
     resto_m = m_canal - int(camp["matriculas"].sum())
-    if resto <= 0 and resto_m <= 0:
+    resto_i = i_canal - float(camp["ingresos"].sum()) if "ingresos" in camp else 0.0
+    if resto <= 0 and resto_m <= 0 and resto_i <= 0:
         return camp
     fila = {c: (0 if c != "campana" else "(Sin campaña)") for c in camp.columns}
     fila["leads"] = max(resto, 0)
     fila["matriculas"] = max(resto_m, 0)
+    if "ingresos" in camp:
+        fila["ingresos"] = max(resto_i, 0.0)
     return pd.concat([camp, pd.DataFrame([fila])], ignore_index=True)
 
 

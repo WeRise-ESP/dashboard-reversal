@@ -272,6 +272,47 @@ def barras(df: pd.DataFrame, x: str, y: str, color: str | None,
     st.plotly_chart(fig, width='stretch')
 
 
+# Colores de marca por plataforma de ads (distinguibles al apilar).
+MAPA_PLATAFORMA = {"Google Ads": TEMA.primario, "Meta Ads": TEMA.ambar_riesgo}
+
+
+def barras_total(df: pd.DataFrame, x: str, y: str, texto_col: str,
+                 y_label: str = "", color: str | None = None) -> None:
+    """Barras verticales de una sola serie (total diario) con etiqueta de valor."""
+    if df.empty:
+        st.info("Sin datos para el periodo seleccionado.")
+        return
+    fig = px.bar(df, x=x, y=y, text=texto_col)
+    fig.update_traces(marker_color=color or TEMA.primario, textposition="outside",
+                      textfont_size=10, cliponaxis=False)
+    fig.update_layout(
+        height=340, margin=dict(l=10, r=10, t=30, b=10),
+        yaxis_title=y_label, xaxis_title="",
+        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+    )
+    st.plotly_chart(fig, width='stretch')
+
+
+def barras_apiladas(df: pd.DataFrame, x: str, y: str, color: str, texto_col: str,
+                    y_label: str = "", mapa_color: dict | None = None) -> None:
+    """Barras apiladas por serie (plataforma/canal) con etiqueta dentro de cada
+    segmento y leyenda debajo. La altura de la barra = total del día."""
+    if df.empty:
+        st.info("Sin datos para el periodo seleccionado.")
+        return
+    fig = px.bar(df, x=x, y=y, color=color, text=texto_col,
+                 color_discrete_map=mapa_color or {},
+                 color_discrete_sequence=list(TEMA.paleta))
+    fig.update_traces(textposition="inside", textfont_size=9, insidetextanchor="middle")
+    fig.update_layout(
+        barmode="stack", height=400, margin=dict(l=10, r=10, t=30, b=80),
+        legend=_LEG_ABAJO, legend_title="", yaxis_title=y_label, xaxis_title="",
+        uniformtext=dict(minsize=8, mode="hide"),
+        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+    )
+    st.plotly_chart(fig, width='stretch')
+
+
 def embudo_chart(df: pd.DataFrame) -> None:
     if df.empty:
         st.info("Sin datos de embudo.")

@@ -106,15 +106,37 @@ st.divider()
 # --------------------------------------------------------------------------- #
 # Tendencias
 # --------------------------------------------------------------------------- #
-col_izq, col_der = st.columns(2)
-with col_izq:
-    st.subheader("Inversión diaria por plataforma")
-    ui.linea_temporal(metrics.serie_diaria_inversion(datos.ads),
-                      x="fecha", y="coste", color="plataforma", titulo="", y_label="€/día")
-with col_der:
-    st.subheader("Leads diarios (todos los canales)")
-    ui.area_apilada(metrics.serie_diaria_leads_por_canal(datos.leads),
-                    x="fecha", y="leads", color="programa", titulo="", y_label="leads/día")
+# --- Inversión diaria: Total | Por plataforma ---
+st.subheader("💰 Inversión diaria")
+inv = metrics.serie_diaria_inversion(datos.ads)          # fecha, plataforma, coste
+inv_tot = inv.groupby("fecha", as_index=False)["coste"].sum()
+inv_tot["txt"] = inv_tot["coste"].apply(lambda v: eur(v, 0))
+inv = inv.copy()
+inv["txt"] = inv["coste"].apply(lambda v: eur(v, 0))
+ci1, ci2 = st.columns(2)
+with ci1:
+    st.caption("Total (todas las plataformas)")
+    ui.barras_total(inv_tot, x="fecha", y="coste", texto_col="txt", y_label="€/día")
+with ci2:
+    st.caption("Por plataforma")
+    ui.barras_apiladas(inv, x="fecha", y="coste", color="plataforma", texto_col="txt",
+                       y_label="€/día", mapa_color=ui.MAPA_PLATAFORMA)
+
+# --- Leads diarios: Total | Por canal ---
+st.subheader("🎯 Leads diarios")
+lc = metrics.serie_diaria_leads_por_canal(datos.leads)   # fecha, programa (canal), leads
+lt = lc.groupby("fecha", as_index=False)["leads"].sum()
+lt["txt"] = lt["leads"].apply(lambda v: num(v, 0))
+lc = lc.copy()
+lc["txt"] = lc["leads"].apply(lambda v: num(v, 0))
+cl1, cl2 = st.columns(2)
+with cl1:
+    st.caption("Total (todos los canales)")
+    ui.barras_total(lt, x="fecha", y="leads", texto_col="txt", y_label="leads/día")
+with cl2:
+    st.caption("Por canal")
+    ui.barras_apiladas(lc, x="fecha", y="leads", color="programa", texto_col="txt",
+                       y_label="leads/día")
 
 col_a, col_b = st.columns(2)
 with col_a:

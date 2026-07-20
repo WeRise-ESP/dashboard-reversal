@@ -208,21 +208,32 @@ def _fetch_deals(creds: dict, desde, hasta) -> pd.DataFrame:
     return pd.DataFrame(filas)
 
 
+def _lotes(seq: list, n: int = 100):
+    """Trocea una lista en lotes de tamaño n (la API de HubSpot limita batch a 100)."""
+    for i in range(0, len(seq), n):
+        yield seq[i:i + n]
+
+
 def _atrib_por_deal(token: str, deal_ids: list[str]) -> dict:
     """Devuelve {deal_id: (canal, campana)} leyendo la fuente del contacto asociado
-    a cada deal (hs_analytics_source + source_data_1/2)."""
+    a cada deal (hs_analytics_source + source_data_1/2).
+
+    HubSpot limita los batch a 100 inputs, así que troceamos deal_ids y contact_ids
+    en lotes de 100 (con >100 deals antes se recibía un 400 y se perdía TODO)."""
     import requests
 
-    # 1) deal -> contacto (associations v4 batch)
-    try:
-        r = requests.post(
-            f"{API}/crm/v4/associations/deal/contact/batch/read",
-            headers=_headers(token),
-            json={"inputs": [{"id": i} for i in deal_ids]}, timeout=60)
-        r.raise_for_status()
-        res = r.json().get("results", [])
-    except Exception:  # noqa: BLE001
-        return {}
+    # 1) deal -> contacto (associations v4 batch, en lotes de 100)
+    res = []
+    for lote in _lotes(deal_ids):
+        try:
+            r = requests.post(
+                f"{API}/crm/v4/associations/deal/contact/batch/read",
+                headers=_headers(token),
+                json={"inputs": [{"id": i} for i in lote]}, timeout=60)
+            r.raise_for_status()
+            res.extend(r.json().get("results", []))
+        except Exception:  # noqa: BLE001
+            continue
 
     deal_to_contact, contact_ids = {}, set()
     for item in res:
@@ -235,20 +246,21 @@ def _atrib_por_deal(token: str, deal_ids: list[str]) -> dict:
     if not contact_ids:
         return {}
 
-    # 2) contacto -> fuente + desglose (batch read)
-    try:
-        r = requests.post(
-            f"{API}/crm/v3/objects/contacts/batch/read",
-            headers=_headers(token),
-            json={"properties": ["hs_analytics_source", "hs_analytics_source_data_1",
-                                 "hs_analytics_source_data_2"],
-                  "inputs": [{"id": c} for c in contact_ids]}, timeout=60)
-        r.raise_for_status()
-        props_por_contacto = {
-            str(c["id"]): c.get("properties", {}) for c in r.json().get("results", [])
-        }
-    except Exception:  # noqa: BLE001
-        return {}
+    # 2) contacto -> fuente + desglose (batch read, en lotes de 100)
+    props_por_contacto = {}
+    for lote in _lotes(list(contact_ids)):
+        try:
+            r = requests.post(
+                f"{API}/crm/v3/objects/contacts/batch/read",
+                headers=_headers(token),
+                json={"properties": ["hs_analytics_source", "hs_analytics_source_data_1",
+                                     "hs_analytics_source_data_2"],
+                      "inputs": [{"id": c} for c in lote]}, timeout=60)
+            r.raise_for_status()
+            for c in r.json().get("results", []):
+                props_por_contacto[str(c["id"])] = c.get("properties", {})
+        except Exception:  # noqa: BLE001
+            continue
 
     out = {}
     for did, cid in deal_to_contact.items():

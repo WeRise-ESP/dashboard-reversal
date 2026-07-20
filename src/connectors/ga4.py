@@ -114,7 +114,11 @@ def _consultar_api(creds: dict, desde, hasta) -> pd.DataFrame:
 # Desgloses extra (KPIs del periodo, páginas, dispositivo, nuevos/recurrentes)
 # --------------------------------------------------------------------------- #
 def obtener_extra(desde, hasta) -> dict:
-    """Devuelve KPIs del periodo y desgloses. Si la API falla, cae a ejemplo."""
+    """Devuelve KPIs del periodo y desgloses. Si la API falla, cae a ejemplo.
+
+    Cada desglose se calcula de forma independiente (`_safe`): si uno falla
+    (p. ej. una dimensión concreta) el resto sigue disponible en vez de perderse
+    todo el bloque."""
     creds = _leer_secreto("ga4")
     if creds and (creds.get("service_account") or creds.get("service_account_file")):
         try:
@@ -126,11 +130,23 @@ def obtener_extra(desde, hasta) -> dict:
                 "paginas": _paginas(client, prop, desde, hasta),
                 "dispositivo": _dispositivo(client, prop, desde, hasta),
                 "nuevos": _nuevos(client, prop, desde, hasta),
-                "paises": _paises(client, prop, desde, hasta),
+                # Geográficos: cada uno degrada a vacío (tarjeta "sin datos") si falla,
+                # sin tirar todo el bloque a datos de ejemplo.
+                "paises": _safe(_paises, client, prop, desde, hasta),
+                "regiones": _safe(_regiones, client, prop, desde, hasta),
+                "ciudades": _safe(_ciudades, client, prop, desde, hasta),
             }
         except Exception:  # noqa: BLE001
             pass
     return sample_data.ga4_extra(desde, hasta)
+
+
+def _safe(fn, client, prop, desde, hasta):
+    """Ejecuta un desglose geográfico; si falla, devuelve DataFrame vacío."""
+    try:
+        return fn(client, prop, desde, hasta)
+    except Exception:  # noqa: BLE001
+        return pd.DataFrame()
 
 
 def _totales(client, prop, desde, hasta) -> dict:
@@ -196,6 +212,34 @@ def _paises(client, prop, desde, hasta) -> pd.DataFrame:
     for row in r.rows:
         filas.append(dict(
             pais=row.dimension_values[0].value or "(no definido)",
+            sesiones=int(row.metric_values[0].value or 0),
+            usuarios=int(row.metric_values[1].value or 0),
+        ))
+    return pd.DataFrame(filas)
+
+
+def _regiones(client, prop, desde, hasta) -> pd.DataFrame:
+    """Sesiones y usuarios por región/comunidad (top 8)."""
+    r = _run(client, prop, ["region"],
+             ["sessions", "totalUsers"], desde, hasta, limit=8, order="sessions")
+    filas = []
+    for row in r.rows:
+        filas.append(dict(
+            region=row.dimension_values[0].value or "(no definido)",
+            sesiones=int(row.metric_values[0].value or 0),
+            usuarios=int(row.metric_values[1].value or 0),
+        ))
+    return pd.DataFrame(filas)
+
+
+def _ciudades(client, prop, desde, hasta) -> pd.DataFrame:
+    """Sesiones y usuarios por ciudad (top 8)."""
+    r = _run(client, prop, ["city"],
+             ["sessions", "totalUsers"], desde, hasta, limit=8, order="sessions")
+    filas = []
+    for row in r.rows:
+        filas.append(dict(
+            ciudad=row.dimension_values[0].value or "(no definido)",
             sesiones=int(row.metric_values[0].value or 0),
             usuarios=int(row.metric_values[1].value or 0),
         ))

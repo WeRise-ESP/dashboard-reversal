@@ -154,8 +154,21 @@ def ga4_extra(desde, hasta) -> dict:
                      ("Ireland", 31), ("(no definido)", 22),
                      ("United Arab Emirates", 8), ("India", 6), ("Argentina", 5)]
     ])
+    regiones = pd.DataFrame([
+        {"region": r_, "sesiones": s, "usuarios": int(s * 0.82)}
+        for r_, s in [("Catalonia", 407), ("Madrid", 272), ("Andalusia", 172),
+                      ("Valencian Community", 162), ("Castile and Leon", 61),
+                      ("Basque Country", 44), ("Galicia", 38), ("Canary Islands", 30)]
+    ])
+    ciudades = pd.DataFrame([
+        {"ciudad": c, "sesiones": s, "usuarios": int(s * 0.82)}
+        for c, s in [("Barcelona", 260), ("Madrid", 218), ("Valencia", 77),
+                     ("Malaga", 40), ("Seville", 34), ("Zaragoza", 25),
+                     ("Bilbao", 22), ("(no definido)", 179)]
+    ])
     return {"origen": "sample", "totales": totales, "paginas": paginas,
-            "dispositivo": dispositivo, "nuevos": nuevos, "paises": paises}
+            "dispositivo": dispositivo, "nuevos": nuevos, "paises": paises,
+            "regiones": regiones, "ciudades": ciudades}
 
 
 # --------------------------------------------------------------------------- #

@@ -181,23 +181,39 @@ if not cruce.empty:
 st.divider()
 
 # --------------------------------------------------------------------------- #
-# Quién está entrando — país, especialidad y motivos de pérdida
+# Quién está entrando — leads: país declarado, especialidad y motivos de pérdida
 # --------------------------------------------------------------------------- #
 st.subheader("Quién está entrando")
-q1, q2, q3, q4 = st.columns(4)
+q1, q2, q3 = st.columns(3)
 ui.tarjeta_ranking(
-    q1, "Visitas por país", metrics.visitas_por_pais(datos.ga4_extra),
-    "pais", "sesiones", vacio="Sin visitas registradas",
-    nota="Sesiones del sitio (GA4).")
-ui.tarjeta_ranking(
-    q2, "Leads por país", metrics.leads_por_pais(datos.leads),
+    q1, "Leads por país", metrics.leads_por_pais(datos.leads),
     "pais", "leads", vacio="País aún no capturado en el formulario",
     nota="País declarado por el lead (HubSpot).")
 ui.tarjeta_ranking(
-    q3, "Especialidades (leads)", metrics.especialidades_leads(datos.leads),
+    q2, "Especialidades (leads)", metrics.especialidades_leads(datos.leads),
     "especialidad", "leads", vacio="Sin especialidad informada",
     nota="Perfil profesional (perfil_titulacion).")
 ui.tarjeta_ranking(
-    q4, "Motivos de cierre perdido", metrics.motivos_cierre_perdido(datos.deals),
+    q3, "Motivos de cierre perdido", metrics.motivos_cierre_perdido(datos.deals),
     "motivo", "deals", vacio="Sin deals perdidos",
     nota="Deals en 'Cierre perdido'.")
+
+st.write("")
+
+# --------------------------------------------------------------------------- #
+# De dónde nos visitan — geografía del tráfico (GA4)
+# --------------------------------------------------------------------------- #
+st.markdown("**De dónde nos visitan (GA4)**")
+g1, g2, g3 = st.columns(3)
+ui.tarjeta_ranking(
+    g1, "Visitas por país", metrics.visitas_por_pais(datos.ga4_extra),
+    "pais", "sesiones", vacio="Sin visitas registradas",
+    nota="Sesiones del sitio (GA4).")
+ui.tarjeta_ranking(
+    g2, "Visitas por región", metrics.visitas_por_region(datos.ga4_extra),
+    "region", "sesiones", vacio="Sin visitas registradas",
+    nota="Comunidad/región (GA4).")
+ui.tarjeta_ranking(
+    g3, "Visitas por ciudad", metrics.visitas_por_ciudad(datos.ga4_extra),
+    "ciudad", "sesiones", vacio="Sin visitas registradas",
+    nota="Ciudad (GA4).")

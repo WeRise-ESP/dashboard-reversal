@@ -606,14 +606,29 @@ def _ranking(serie: pd.Series, etiqueta: str, valor: str, top: int) -> pd.DataFr
     return out
 
 
+def _visitas_geo(ga4_extra: dict, clave: str, dim: str, top: int) -> pd.DataFrame:
+    """Sesiones por dimensión geográfica (país/región/ciudad) desde ga4_extra."""
+    if not ga4_extra:
+        return pd.DataFrame(columns=[dim, "sesiones"])
+    df = ga4_extra.get(clave)
+    if df is None or df.empty or dim not in df:
+        return pd.DataFrame(columns=[dim, "sesiones"])
+    return df.sort_values("sesiones", ascending=False).head(top)[[dim, "sesiones"]]
+
+
 def visitas_por_pais(ga4_extra: dict, top: int = 8) -> pd.DataFrame:
     """Sesiones por país (GA4). Devuelve [pais, sesiones]."""
-    if not ga4_extra:
-        return pd.DataFrame(columns=["pais", "sesiones"])
-    df = ga4_extra.get("paises")
-    if df is None or df.empty:
-        return pd.DataFrame(columns=["pais", "sesiones"])
-    return df.sort_values("sesiones", ascending=False).head(top)[["pais", "sesiones"]]
+    return _visitas_geo(ga4_extra, "paises", "pais", top)
+
+
+def visitas_por_region(ga4_extra: dict, top: int = 8) -> pd.DataFrame:
+    """Sesiones por región/comunidad (GA4). Devuelve [region, sesiones]."""
+    return _visitas_geo(ga4_extra, "regiones", "region", top)
+
+
+def visitas_por_ciudad(ga4_extra: dict, top: int = 8) -> pd.DataFrame:
+    """Sesiones por ciudad (GA4). Devuelve [ciudad, sesiones]."""
+    return _visitas_geo(ga4_extra, "ciudades", "ciudad", top)
 
 
 def leads_por_pais(df_leads: pd.DataFrame, top: int = 8) -> pd.DataFrame:

@@ -174,8 +174,8 @@ def hubspot_leads(desde, hasta) -> pd.DataFrame:
     campanas = ["nac - longevidad y healthspan", "test mestral — entrenadores",
                 "test mestral — coach", "test mestral — video", "Sin campaña"]
     prob_campana = [0.55, 0.15, 0.12, 0.10, 0.08]
-    paises = ["France", "United Kingdom", "Spain", "Mexico", "Indonesia", "Sin país"]
-    prob_pais = [0.55, 0.17, 0.15, 0.05, 0.03, 0.05]
+    paises = ["España", "México", "Argentina", "Estados Unidos", "Reino Unido", "Sin país"]
+    prob_pais = [0.72, 0.08, 0.06, 0.05, 0.04, 0.05]
     especialidades = ["Médico", "Nutricionista / Dietista", "Entrenador o Fisioterapeuta",
                        "Enfermero/a", "Coach de salud", "Otro", "Sin especificar"]
     prob_esp = [0.22, 0.14, 0.12, 0.08, 0.14, 0.20, 0.10]

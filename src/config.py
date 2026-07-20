@@ -216,6 +216,28 @@ def especialidad_amigable(valor: str) -> str:
                                        valor.replace("_", " ").capitalize())
 
 
+# Normaliza variantes de nombre de país (ES/EN) a una etiqueta canónica en español.
+PAIS_CANONICO = {
+    "spain": "España", "espana": "España", "españa": "España",
+    "france": "Francia", "francia": "Francia",
+    "united kingdom": "Reino Unido", "uk": "Reino Unido", "reino unido": "Reino Unido",
+    "united states": "Estados Unidos", "usa": "Estados Unidos",
+    "estados unidos": "Estados Unidos",
+    "mexico": "México", "méxico": "México",
+    "germany": "Alemania", "alemania": "Alemania",
+    "portugal": "Portugal", "italy": "Italia", "italia": "Italia",
+    "argentina": "Argentina", "colombia": "Colombia", "chile": "Chile",
+}
+
+
+def pais_amigable(valor: str) -> str:
+    """Nombre de país auto-declarado -> etiqueta canónica en español."""
+    if not valor:
+        return "Sin país"
+    v = valor.strip()
+    return PAIS_CANONICO.get(v.lower(), v.title())
+
+
 # Nexo ads <-> leads: cada plataforma publicitaria corresponde a un canal de
 # hs_analytics_source, de modo que la inversión se cruza con los leads por canal.
 PLATAFORMA_CANAL = {

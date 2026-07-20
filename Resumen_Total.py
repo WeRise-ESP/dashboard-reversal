@@ -191,8 +191,8 @@ ui.tarjeta_ranking(
     nota="Sesiones del sitio (GA4).")
 ui.tarjeta_ranking(
     q2, "Leads por país", metrics.leads_por_pais(datos.leads),
-    "pais", "leads", vacio="Sin país en los leads",
-    nota="País de los contactos (IP, HubSpot).")
+    "pais", "leads", vacio="País aún no capturado en el formulario",
+    nota="País declarado por el lead (HubSpot).")
 ui.tarjeta_ranking(
     q3, "Especialidades (leads)", metrics.especialidades_leads(datos.leads),
     "especialidad", "leads", vacio="Sin especialidad informada",

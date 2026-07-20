@@ -103,6 +103,19 @@ def _a_fecha(iso: str):
     return datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone(timezone.utc).date()
 
 
+def _opciones_enum(token: str, propiedad: str) -> dict:
+    """{valor_interno: etiqueta} de una propiedad de contacto tipo enumeración.
+    Se usa para traducir pais_de_residencia ('1' -> 'España'). Devuelve {} si falla."""
+    import requests
+    try:
+        r = requests.get(f"{API}/crm/v3/properties/contacts/{propiedad}",
+                         headers=_headers(token), timeout=30)
+        r.raise_for_status()
+        return {o["value"]: o["label"] for o in r.json().get("options", [])}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
 def _fetch_leads(creds: dict, desde, hasta) -> pd.DataFrame:
     import requests
 
@@ -119,9 +132,13 @@ def _fetch_leads(creds: dict, desde, hasta) -> pd.DataFrame:
         "properties": ["createdate", "lifecyclestage", "hs_lead_status",
                        "hs_analytics_source", "hs_analytics_source_data_1",
                        "hs_analytics_source_data_2", config.HUBSPOT_PROP_SEGMENTO,
-                       "ip_country"],
+                       "pais_de_residencia", "country"],
         "limit": 100,
     }
+    # País FIABLE = auto-declarado. pais_de_residencia es un enum (valor->etiqueta);
+    # ip_country se descarta porque en leads de Meta refleja la IP del servidor de
+    # Meta (Francia), no la del usuario.
+    opciones_pais = _opciones_enum(token, "pais_de_residencia")
     filas, after = [], None
     while True:
         if after:
@@ -139,7 +156,9 @@ def _fetch_leads(creds: dict, desde, hasta) -> pd.DataFrame:
                 p.get("hs_analytics_source_data_2"),
             )
             estado = MAPA_LIFECYCLE.get((p.get("lifecyclestage") or "").lower(), "Lead")
-            pais = (p.get("ip_country") or "").strip()
+            # País auto-declarado: pais_de_residencia (enum) y, si falta, country.
+            pdr = (p.get("pais_de_residencia") or "").strip()
+            pais_raw = opciones_pais.get(pdr, "") if pdr else (p.get("country") or "")
             filas.append(dict(
                 lead_id=c.get("id"),
                 fecha_creacion=_a_fecha(p.get("createdate")),
@@ -149,7 +168,7 @@ def _fetch_leads(creds: dict, desde, hasta) -> pd.DataFrame:
                 nivel="",
                 estado=estado,
                 es_matricula=(estado == "Matriculado"),
-                pais=pais.title() if pais else "Sin país",
+                pais=config.pais_amigable(pais_raw),
                 especialidad=config.especialidad_amigable(
                     p.get(config.HUBSPOT_PROP_SEGMENTO)),
             ))

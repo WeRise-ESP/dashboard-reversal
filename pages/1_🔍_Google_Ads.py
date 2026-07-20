@@ -91,6 +91,7 @@ st.divider()
 # --------------------------------------------------------------------------- #
 st.subheader("Rendimiento por campaña")
 camp = metrics.enriquecer_campanas_con_hubspot(metrics.resumen_campana(df), datos.leads)
+camp = metrics.reconciliar_leads_canal(camp, datos.leads, canal)
 ui.barras(camp.head(10), x="coste", y="campana", color=None,
           titulo="Inversión por campaña", orientacion="h")
 

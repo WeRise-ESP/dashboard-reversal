@@ -513,6 +513,26 @@ def enriquecer_campanas_con_hubspot(camp: pd.DataFrame,
     return camp
 
 
+def reconciliar_leads_canal(camp: pd.DataFrame, df_leads: pd.DataFrame,
+                            canal: str) -> pd.DataFrame:
+    """Añade una fila '(Sin campaña)' con los leads del CANAL que no casaron con
+    ninguna campaña, para que el total de la tabla por campaña cuadre con el total
+    del canal (algunos leads de pago no traen campaña identificable en HubSpot)."""
+    if camp is None or camp.empty or df_leads is None or df_leads.empty:
+        return camp
+    lc = df_leads[df_leads["fuente"] == canal]
+    n_canal = len(lc)
+    m_canal = int(lc["es_matricula"].sum()) if n_canal else 0
+    resto = n_canal - int(camp["leads"].sum())
+    resto_m = m_canal - int(camp["matriculas"].sum())
+    if resto <= 0 and resto_m <= 0:
+        return camp
+    fila = {c: (0 if c != "campana" else "(Sin campaña)") for c in camp.columns}
+    fila["leads"] = max(resto, 0)
+    fila["matriculas"] = max(resto_m, 0)
+    return pd.concat([camp, pd.DataFrame([fila])], ignore_index=True)
+
+
 def leads_por_campana(df_leads: pd.DataFrame) -> pd.DataFrame:
     """Cuenta leads y matrículas por nombre de campaña (derivado de HubSpot)."""
     if df_leads.empty or "campana" not in df_leads:

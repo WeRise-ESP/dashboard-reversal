@@ -229,19 +229,34 @@ def _es_ruido_campana(v: str) -> bool:
         or vl in {"keyword", "unknown keywords (ssl)", "google"}
 
 
+# Alias UTM (HubSpot) -> nombre real de la campaña en la plataforma. Úsalo cuando
+# el utm_campaign no coincide con el nombre de la campaña de Google/Meta.
+# Clave en minúsculas; se compara normalizado.
+HUBSPOT_CAMPANA_ALIAS = {
+    "trafico_nac_marca": "NAC_Marca-Trafico-Search",
+}
+
+
 def campana_hubspot(source: str, source_data_1: str, source_data_2: str) -> str:
     """Deriva el nombre de campaña desde hs_analytics_source_data_1/2.
 
+    El nombre de campaña vive en un campo distinto según la fuente:
+    - **Paid Social** (Meta): en `source_data_2` (data_1 es la red Instagram/Facebook).
+    - **Paid Search** (Google) y **Otras campañas / Email**: en `source_data_1`
+      (en Paid Search, data_2 es la keyword).
+
     Solo para fuentes de pago/campaña; el resto devuelve "Sin campaña".
     """
-    if (source or "").strip().upper() not in _CAMPANA_FUENTES:
+    src = (source or "").strip().upper()
+    if src not in _CAMPANA_FUENTES:
         return "Sin campaña"
     d1 = (source_data_1 or "").strip()
     d2 = (source_data_2 or "").strip()
-    if d2 and not _es_ruido_campana(d2):
-        return d2
-    if d1 and not _es_ruido_campana(d1) and d1.lower() not in _CAMPANA_REDES:
-        return d1
+    # Orden de preferencia del campo donde está la campaña, según la fuente.
+    candidatos = (d2, d1) if src == "PAID_SOCIAL" else (d1, d2)
+    for c in candidatos:
+        if c and not _es_ruido_campana(c) and c.lower() not in _CAMPANA_REDES:
+            return HUBSPOT_CAMPANA_ALIAS.get(c.strip().lower(), c)
     return "Sin campaña"
 
 

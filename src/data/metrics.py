@@ -617,7 +617,7 @@ def visitas_por_pais(ga4_extra: dict, top: int = 8) -> pd.DataFrame:
 
 
 def leads_por_pais(df_leads: pd.DataFrame, top: int = 8) -> pd.DataFrame:
-    """Nº de leads (contactos) por país (ip_country). Devuelve [pais, leads]."""
+    """Nº de leads (contactos) por país DECLARADO. Devuelve [pais, leads]."""
     if df_leads is None or df_leads.empty or "pais" not in df_leads:
         return pd.DataFrame(columns=["pais", "leads"])
     s = df_leads[df_leads["pais"] != "Sin país"]["pais"]

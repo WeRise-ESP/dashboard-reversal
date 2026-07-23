@@ -108,6 +108,67 @@ if not et.empty:
 st.divider()
 
 # --------------------------------------------------------------------------- #
+# Pipeline de ventas — reparto por etapa ACTUAL (vista de tablero HubSpot)
+# --------------------------------------------------------------------------- #
+st.subheader("Pipeline de ventas")
+st.caption(
+    "Dónde está **ahora** cada negocio del pipeline *Sales Pipeline*. A diferencia "
+    "del embudo (acumulado), aquí cada deal cuenta en su etapa actual e incluye "
+    "los cierres ganados y perdidos."
+)
+pipe_et = metrics.pipeline_por_etapa(deals)
+if pipe_et.empty:
+    st.info("Sin negocios en el pipeline para este periodo.")
+else:
+    cols_et = st.columns(len(pipe_et))
+    for c, (_, r) in zip(cols_et, pipe_et.iterrows()):
+        est = ("ok" if r["etapa"] == "Cierre ganado"
+               else "off" if r["etapa"] == "Cierre perdido" else None)
+        ui.kpi(c, r["etapa"], num(r["deals"], 0),
+               f"{pct(r['pct'], 1)} · {eur(r['importe'], 0)}", estado=est)
+
+    st.write("")
+    tabla_pipe = metrics.con_fila_total(
+        pipe_et[["etapa", "deals", "pct", "importe"]].copy(), "etapa",
+        ratios={"pct": lambda s, _: 1.0})
+    ui.tabla(tabla_pipe, [
+        {"key": "etapa", "label": "Etapa", "align": "l"},
+        {"key": "deals", "label": "Negocios", "fmt": lambda v: num(v, 0), "bold": True},
+        {"key": "pct", "label": "% del pipeline", "fmt": lambda v: pct(v, 1)},
+        {"key": "importe", "label": "Importe", "fmt": lambda v: eur(v, 0)},
+    ], etiqueta_col="etapa")
+
+# --------------------------------------------------------------------------- #
+# Motivos de cierre perdido
+# --------------------------------------------------------------------------- #
+st.subheader("Motivos de cierre perdido")
+mot = metrics.motivos_perdida_detalle(deals)
+if mot.empty:
+    st.info("No hay negocios en 'Cierre perdido' en este periodo.")
+else:
+    n_perd = int(mot["deals"].sum())
+    st.caption(
+        f"Los **{num(n_perd)} negocios perdidos** del periodo, por su *Motivo de "
+        f"cierre perdido del negocio* (HubSpot). El importe es el valor que se "
+        f"quedó por el camino."
+    )
+    c_izq, c_der = st.columns([0.45, 0.55])
+    with c_izq:
+        ui.barras(mot.sort_values("deals"), x="deals", y="motivo", color=None,
+                  titulo="", orientacion="h")
+    with c_der:
+        ui.tabla(metrics.con_fila_total(
+            mot[["motivo", "deals", "pct", "importe"]].copy(), "motivo",
+            ratios={"pct": lambda s, _: 1.0}), [
+            {"key": "motivo", "label": "Motivo", "align": "l"},
+            {"key": "deals", "label": "Negocios", "fmt": lambda v: num(v, 0), "bold": True},
+            {"key": "pct", "label": "%", "fmt": lambda v: pct(v, 1)},
+            {"key": "importe", "label": "Importe", "fmt": lambda v: eur(v, 0)},
+        ], etiqueta_col="motivo")
+
+st.divider()
+
+# --------------------------------------------------------------------------- #
 # Inversión ↔ leads por canal
 # --------------------------------------------------------------------------- #
 st.subheader("Inversión ↔ leads por canal (CPL, coste/matrícula, ROAS)")

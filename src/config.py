@@ -368,6 +368,12 @@ HUBSPOT_ETAPAS_UVIC = [
 ]
 HUBSPOT_ETAPA_PERDIDO = ("closedlost", "Cierre perdido")
 HUBSPOT_ETAPAS_MAP = dict(HUBSPOT_ETAPAS_UVIC + [HUBSPOT_ETAPA_PERDIDO])
+# Orden completo del pipeline (incluye Cierre perdido) para la vista de tablero.
+HUBSPOT_ETAPAS_TODAS = [e for _, e in HUBSPOT_ETAPAS_UVIC] + [HUBSPOT_ETAPA_PERDIDO[1]]
+
+# Propiedad de deal con el motivo de pérdida ("Motivo de cierre perdido del
+# negocio", select relleno al 100%). `closed_lost_reason` está vacía en el portal.
+HUBSPOT_PROP_MOTIVO_PERDIDO = "motivo_de_cierre"
 
 
 # --------------------------------------------------------------------------- #

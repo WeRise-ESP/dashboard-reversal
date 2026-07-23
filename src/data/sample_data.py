@@ -223,9 +223,9 @@ def hubspot_deals(desde, hasta) -> pd.DataFrame:
     etapas = HUBSPOT_ETAPAS_UVIC  # [(id, label), ...] en orden de embudo
     prob = [0.55, 0.18, 0.12, 0.08, 0.07]
     segmentos = [p.nombre for p in SEGMENTOS]
-    motivos = ["Precio", "Sin respuesta", "Eligió otra formación", "Timing",
-               "Sin motivo indicado"]
-    prob_mot = [0.25, 0.30, 0.15, 0.10, 0.20]
+    motivos = ["Motivos económicos", "Pierde interés", "Teléfono/email erróneo",
+               "Imposible contactar", "Titulación Oficial", "Próxima convocatoria"]
+    prob_mot = [0.25, 0.20, 0.20, 0.15, 0.10, 0.10]
     filas = []
     deal_id = 5000
     for f in fechas:

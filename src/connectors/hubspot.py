@@ -194,7 +194,7 @@ def _fetch_deals(creds: dict, desde, hasta) -> pd.DataFrame:
             ]
         }],
         "properties": ["dealstage", "amount", "createdate", "dealname",
-                       "closed_lost_reason"],
+                       config.HUBSPOT_PROP_MOTIVO_PERDIDO, "closed_lost_reason"],
         "limit": 100,
     }
     deals, after = [], None
@@ -220,7 +220,10 @@ def _fetch_deals(creds: dict, desde, hasta) -> pd.DataFrame:
         p = d.get("properties", {})
         etapa_id = p.get("dealstage") or ""
         canal, campana = atrib.get(d.get("id"), ("Sin asignar", "Sin campaña"))
-        motivo = (p.get("closed_lost_reason") or "").strip()
+        # "Motivo de cierre perdido del negocio" (select relleno al 100%);
+        # closed_lost_reason queda como respaldo (está vacío en este portal).
+        motivo = ((p.get(config.HUBSPOT_PROP_MOTIVO_PERDIDO) or "").strip()
+                  or (p.get("closed_lost_reason") or "").strip())
         filas.append(dict(
             deal_id=d.get("id"),
             fecha_creacion=_a_fecha(p.get("createdate")),

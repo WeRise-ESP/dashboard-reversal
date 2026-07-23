@@ -400,3 +400,31 @@ def tarjeta_ranking(col, titulo: str, df: pd.DataFrame, etiqueta_col: str,
         f'{_esc(titulo)}</div>{cuerpo}{nota_html}</div>',
         unsafe_allow_html=True,
     )
+
+
+def barras_horizontales(df: pd.DataFrame, etiqueta_col: str, valor_col: str,
+                        texto_col: str | None = None, colores: list | None = None,
+                        x_label: str = "") -> None:
+    """Barras horizontales con el valor al final de cada barra, respetando el
+    ORDEN del DataFrame (la primera fila arriba). Estilo informe de HubSpot."""
+    if df is None or df.empty:
+        st.info("Sin datos.")
+        return
+    d = df.iloc[::-1]  # plotly dibuja la primera fila abajo -> invertimos
+    cols = list(reversed(colores)) if colores else TEMA.primario
+    fig = go.Figure(go.Bar(
+        x=d[valor_col], y=d[etiqueta_col], orientation="h",
+        text=d[texto_col] if texto_col else d[valor_col],
+        textposition="outside", cliponaxis=False,
+        marker_color=cols,
+        hovertemplate="%{y}: %{x}<extra></extra>",
+    ))
+    fig.update_layout(
+        height=90 + 38 * len(d),
+        margin=dict(l=10, r=40, t=10, b=30),
+        xaxis_title=x_label, yaxis_title="",
+        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+        showlegend=False,
+    )
+    fig.update_xaxes(showgrid=True, gridcolor=TEMA.papel_2, zeroline=False)
+    st.plotly_chart(fig, width='stretch')

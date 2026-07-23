@@ -4,7 +4,7 @@ from __future__ import annotations
 import streamlit as st
 
 from src import config
-from src.config import VALOR_MATRICULA
+from src.config import TEMA, VALOR_MATRICULA
 from src.data import loader, metrics
 from src.ui import components as ui
 from src.ui.theme import aplicar_tema, eur, num, pct
@@ -128,6 +128,15 @@ else:
                f"{pct(r['pct'], 1)} · {eur(r['importe'], 0)}", estado=est)
 
     st.write("")
+    # Barras por etapa (orden del pipeline). Ganado en verde, perdido en rojo.
+    _COL_ETAPA = {"Cierre ganado": TEMA.verde_ok, "Cierre perdido": TEMA.rojo_off}
+    graf = pipe_et.copy()
+    graf["txt"] = graf["deals"].apply(lambda v: num(v, 0))
+    ui.barras_horizontales(
+        graf, "etapa", "deals", texto_col="txt",
+        colores=[_COL_ETAPA.get(e, TEMA.primario) for e in graf["etapa"]],
+        x_label="Negocios")
+
     tabla_pipe = metrics.con_fila_total(
         pipe_et[["etapa", "deals", "pct", "importe"]].copy(), "etapa",
         ratios={"pct": lambda s, _: 1.0})
@@ -154,8 +163,10 @@ else:
     )
     c_izq, c_der = st.columns([0.45, 0.55])
     with c_izq:
-        ui.barras(mot.sort_values("deals"), x="deals", y="motivo", color=None,
-                  titulo="", orientacion="h")
+        graf_mot = mot.copy()
+        graf_mot["txt"] = graf_mot["deals"].apply(lambda v: num(v, 0))
+        ui.barras_horizontales(graf_mot, "motivo", "deals", texto_col="txt",
+                               x_label="Negocios perdidos")
     with c_der:
         ui.tabla(metrics.con_fila_total(
             mot[["motivo", "deals", "pct", "importe"]].copy(), "motivo",

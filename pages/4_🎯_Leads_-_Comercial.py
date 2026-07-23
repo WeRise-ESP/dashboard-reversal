@@ -9,14 +9,15 @@ from src.data import loader, metrics
 from src.ui import components as ui
 from src.ui.theme import aplicar_tema, eur, num, pct
 
-st.set_page_config(page_title="Leads · HubSpot", page_icon="🎯", layout="wide")
+st.set_page_config(page_title="Leads - Comercial · Reversal", page_icon="🎯",
+                   layout="wide")
 aplicar_tema()
 
 desde, hasta, etq = ui.selector_periodo()
 datos = loader.cargar_todo(desde, hasta)
 ui.aviso_origenes(datos.origenes)
 
-ui.cabecera("Leads · HubSpot", f"Reversal · del lead a la matrícula · {etq}")
+ui.cabecera("Leads - Comercial", f"Reversal · del lead a la matrícula · {etq}")
 
 leads = datos.leads
 deals = datos.deals

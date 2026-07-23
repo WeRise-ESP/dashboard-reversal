@@ -68,10 +68,24 @@ def _consultar_api(creds: dict, desde, hasta) -> pd.DataFrame:
     customer_id = creds.get("customer_id", config.GOOGLE_ADS_CUSTOMER_ID)
     ga_service = client.get_service("GoogleAdsService")
 
+    # 1) Catálogo de TODAS las campañas de la cuenta (activas y pausadas), aunque
+    #    no hayan tenido actividad en el periodo. Sin filtro de fecha.
+    estados = {}
+    q_camp = """
+        SELECT campaign.name, campaign.status
+        FROM campaign
+        WHERE campaign.status != 'REMOVED'
+    """
+    for batch in ga_service.search_stream(customer_id=customer_id, query=q_camp):
+        for row in batch.results:
+            estados[row.campaign.name] = config.estado_campana(row.campaign.status.name)
+
+    # 2) Métricas diarias del periodo.
     query = f"""
         SELECT
             segments.date,
             campaign.name,
+            campaign.status,
             metrics.impressions,
             metrics.clicks,
             metrics.cost_micros,
@@ -80,17 +94,32 @@ def _consultar_api(creds: dict, desde, hasta) -> pd.DataFrame:
         WHERE segments.date BETWEEN '{desde}' AND '{hasta}'
     """
     filas = []
+    con_datos = set()
     for batch in ga_service.search_stream(customer_id=customer_id, query=query):
         for row in batch.results:
             nombre = row.campaign.name
             # La cuenta es exclusiva de Reversal -> incluimos todas las campañas.
+            con_datos.add(nombre)
             filas.append(dict(
                 fecha=pd.to_datetime(row.segments.date).date(),
                 plataforma="Google Ads",
                 campana=nombre,
+                estado=estados.get(nombre, config.estado_campana(row.campaign.status.name)),
                 impresiones=int(row.metrics.impressions),
                 clics=int(row.metrics.clicks),
                 coste=round(row.metrics.cost_micros / 1_000_000, 2),
                 conversiones=int(row.metrics.conversions),
             ))
+
+    # 3) Campañas SIN actividad en el periodo -> fila a 0 para que aparezcan igual.
+    filas.extend(_filas_sin_actividad(estados, con_datos, "Google Ads", desde))
     return pd.DataFrame(filas)
+
+
+def _filas_sin_actividad(estados: dict, con_datos: set, plataforma: str, desde) -> list:
+    """Filas con métricas a 0 para las campañas que no tuvieron actividad en el
+    periodo, de modo que se listen igualmente con su estado."""
+    return [dict(
+        fecha=desde, plataforma=plataforma, campana=nombre, estado=estado,
+        impresiones=0, clics=0, coste=0.0, conversiones=0,
+    ) for nombre, estado in estados.items() if nombre not in con_datos]

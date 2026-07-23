@@ -53,6 +53,7 @@ def google_ads_diario(desde, hasta) -> pd.DataFrame:
             conv = int(clics * pf["cvr"] * r.uniform(0.5, 1.5))
             filas.append(dict(
                 fecha=f, plataforma="Google Ads", campana=campana,
+                estado="Pausada" if campana.endswith("_Branding") else "Activa",
                 impresiones=impr, clics=clics, coste=coste, conversiones=conv,
             ))
     return pd.DataFrame(filas)
@@ -70,7 +71,7 @@ def meta_ads_diario(desde, hasta) -> pd.DataFrame:
             zip(SEGMENTOS, (3800, 3200, 2900, 2400, 2600))
         )
     }
-    for campana, pf in perfiles.items():
+    for i, (campana, pf) in enumerate(perfiles.items()):
         r = _rng("meta" + campana)
         for f in fechas:
             impr = max(0, int(r.normal(pf["impr"], pf["impr"] * 0.2)))
@@ -80,6 +81,7 @@ def meta_ads_diario(desde, hasta) -> pd.DataFrame:
             conv = int(clics * pf["cvr"] * r.uniform(0.3, 0.9))
             filas.append(dict(
                 fecha=f, plataforma="Meta Ads", campana=campana,
+                estado="Activa" if i % 2 == 0 else "Pausada",
                 impresiones=impr, clics=clics, coste=coste, conversiones=conv,
             ))
     return pd.DataFrame(filas)

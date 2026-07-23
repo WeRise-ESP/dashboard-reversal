@@ -93,6 +93,10 @@ def resumen_campana(df_ads: pd.DataFrame) -> pd.DataFrame:
             conversiones=("conversiones", "sum"),
         )
     )
+    # El estado es atributo de la campaña (igual en todas sus filas diarias).
+    if "estado" in df_ads:
+        est = df_ads.groupby("campana")["estado"].first()
+        g["estado"] = g["campana"].map(est).fillna("—")
     g["programa"] = g["campana"].map(config.programa_por_campana)
     g["ctr"] = g.apply(lambda r: _safe_div(r["clics"], r["impresiones"]), axis=1)
     g["cpc"] = g.apply(lambda r: _safe_div(r["coste"], r["clics"]), axis=1)
@@ -569,7 +573,10 @@ def reconciliar_leads_canal(camp: pd.DataFrame, df_leads: pd.DataFrame,
     resto_i = i_canal - float(camp["ingresos"].sum()) if "ingresos" in camp else 0.0
     if resto <= 0 and resto_m <= 0 and resto_i <= 0:
         return camp
-    fila = {c: (0 if c != "campana" else "(Sin campaña)") for c in camp.columns}
+    # Columnas de texto (estado, programa…) a "" y numéricas a 0.
+    fila = {c: ("" if not pd.api.types.is_numeric_dtype(camp[c]) else 0)
+            for c in camp.columns}
+    fila["campana"] = "(Sin campaña)"
     fila["leads"] = max(resto, 0)
     fila["matriculas"] = max(resto_m, 0)
     if "ingresos" in camp:

@@ -55,6 +55,10 @@ def _consultar_api(creds: dict, desde, hasta) -> pd.DataFrame:
     account = creds.get("ad_account_id", config.META_AD_ACCOUNT_ID)
     token = creds["access_token"]
 
+    # 1) Catálogo de TODAS las campañas de la cuenta (activas y pausadas), aunque
+    #    no hayan tenido entrega en el periodo.
+    estados = _estados_campanas(version, account, token)
+
     url = f"https://graph.facebook.com/{version}/{account}/insights"
     params = {
         "level": "campaign",
@@ -65,6 +69,7 @@ def _consultar_api(creds: dict, desde, hasta) -> pd.DataFrame:
         "limit": 500,
     }
     filas = []
+    con_datos = set()
     while url:
         resp = requests.get(url, params=params, timeout=60)
         resp.raise_for_status()
@@ -82,10 +87,12 @@ def _consultar_api(creds: dict, desde, hasta) -> pd.DataFrame:
                 if tipo in acciones:
                     leads = acciones[tipo]
                     break
+            con_datos.add(nombre)
             filas.append(dict(
                 fecha=pd.to_datetime(row["date_start"]).date(),
                 plataforma="Meta Ads",
                 campana=nombre,
+                estado=estados.get(nombre, "—"),
                 impresiones=int(row.get("impressions", 0)),
                 clics=int(row.get("clicks", 0)),
                 coste=round(float(row.get("spend", 0)), 2),
@@ -93,7 +100,37 @@ def _consultar_api(creds: dict, desde, hasta) -> pd.DataFrame:
             ))
         url = data.get("paging", {}).get("next")
         params = None  # la URL 'next' ya trae los parámetros
+
+    # Campañas SIN entrega en el periodo -> fila a 0 para que se listen igual.
+    filas.extend([dict(
+        fecha=desde, plataforma="Meta Ads", campana=nombre, estado=estado,
+        impresiones=0, clics=0, coste=0.0, conversiones=0,
+    ) for nombre, estado in estados.items() if nombre not in con_datos])
     return pd.DataFrame(filas)
+
+
+def _estados_campanas(version: str, account: str, token: str) -> dict:
+    """{nombre_campaña: estado legible} de TODAS las campañas de la cuenta.
+
+    Usa `effective_status` (estado real de entrega) y cae a `status` si falta.
+    Devuelve {} si la llamada falla (el dashboard sigue con las que tengan datos)."""
+    import requests
+    out, url = {}, f"https://graph.facebook.com/{version}/{account}/campaigns"
+    params = {"fields": "name,status,effective_status", "limit": 500,
+              "access_token": token}
+    try:
+        while url:
+            r = requests.get(url, params=params, timeout=60)
+            r.raise_for_status()
+            data = r.json()
+            for c in data.get("data", []):
+                crudo = c.get("effective_status") or c.get("status") or ""
+                out[c.get("name", "")] = config.estado_campana(crudo)
+            url = data.get("paging", {}).get("next")
+            params = None
+    except Exception:  # noqa: BLE001
+        return out
+    return out
 
 
 def _date_preset(dias: int) -> str:

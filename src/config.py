@@ -248,6 +248,36 @@ def pais_amigable(valor: str) -> str:
     return PAIS_CANONICO.get(v.lower(), v.title())
 
 
+# Estado de campaña -> etiqueta en español. Cubre el vocabulario de Google Ads
+# (campaign.status) y el de Meta (status / effective_status).
+ESTADO_CAMPANA = {
+    # Google Ads
+    "ENABLED": "Activa",
+    "PAUSED": "Pausada",
+    "REMOVED": "Eliminada",
+    # Meta
+    "ACTIVE": "Activa",
+    "ARCHIVED": "Archivada",
+    "DELETED": "Eliminada",
+    "CAMPAIGN_PAUSED": "Pausada",
+    "ADSET_PAUSED": "Pausada (conjunto)",
+    "IN_PROCESS": "En revisión",
+    "PENDING_REVIEW": "En revisión",
+    "WITH_ISSUES": "Con incidencias",
+    "DISAPPROVED": "Rechazada",
+    "PREAPPROVED": "Preaprobada",
+    "PENDING_BILLING_INFO": "Falta facturación",
+}
+
+
+def estado_campana(valor: str) -> str:
+    """Estado crudo de la campaña (Google/Meta) -> etiqueta legible."""
+    if not valor:
+        return "—"
+    return ESTADO_CAMPANA.get(valor.strip().upper(),
+                              valor.replace("_", " ").capitalize())
+
+
 # Nexo ads <-> leads: cada plataforma publicitaria corresponde a un canal de
 # hs_analytics_source, de modo que la inversión se cruza con los leads por canal.
 PLATAFORMA_CANAL = {

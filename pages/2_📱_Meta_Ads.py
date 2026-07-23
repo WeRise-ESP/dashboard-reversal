@@ -100,8 +100,8 @@ ui.barras(camp, x="coste", y="campana", color=None,
           titulo="Inversión por campaña", orientacion="h")
 
 tabla_camp = metrics.con_fila_total(
-    camp[["campana", "impresiones", "clics", "ctr", "cpc", "coste", "leads",
-          "matriculas", "ingresos"]].assign(
+    camp[["campana", "estado", "impresiones", "clics", "ctr", "cpc", "coste",
+          "leads", "matriculas", "ingresos"]].assign(
         cp_matricula=camp["coste"] / camp["matriculas"].replace(0, pd.NA),
         roas=camp["ingresos"] / camp["coste"].replace(0, pd.NA),
     ).fillna(0).copy(),
@@ -113,6 +113,7 @@ tabla_camp = metrics.con_fila_total(
     })
 ui.tabla(tabla_camp, [
     {"key": "campana", "label": "Campaña", "align": "l"},
+    {"key": "estado", "label": "Estado", "align": "l"},
     {"key": "impresiones", "label": "Impr.", "fmt": lambda v: num(v, 0)},
     {"key": "clics", "label": "Clics", "fmt": lambda v: num(v, 0)},
     {"key": "ctr", "label": "CTR", "fmt": lambda v: pct(v, 2)},

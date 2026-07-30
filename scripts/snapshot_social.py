@@ -92,8 +92,11 @@ FUENTES = (
            youtube._api_diario, "histórico completo"),
     Fuente("Facebook", "social_meta", "social_facebook_diario",
            meta_organico._api_fb_diario, "~2 años"),
+    # con_views=True: pide `views` día a día (1 llamada por día). Solo lo hace
+    # el job; la página lee esa columna del histórico que este job acumula.
     Fuente("Instagram", "social_meta", "social_instagram_diario",
-           meta_organico._api_ig_diario, "seguidores: 30 días"),
+           lambda c, d, h: meta_organico._api_ig_diario(c, d, h, con_views=True),
+           "seguidores: 30 días"),
     Fuente("LinkedIn", "linkedin", "social_linkedin_diario",
            linkedin._api_diario, "12 meses"),
 )

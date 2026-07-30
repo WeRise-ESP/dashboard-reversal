@@ -479,10 +479,16 @@ METRICAS_POST = {
 #   en Facebook (`page_messages_new_conversations_unique`, requiere el permiso
 #   `pages_messaging`). Ninguna red lo atribuye a una publicación concreta.
 # - YouTube no tiene concepto de alcance único ni de mensajes.
+# ⚠️ Facebook actualizado el 30-jul-2026 con lo que devuelve la Página REAL, no
+# con lo que dice la documentación: Meta ha retirado toda la familia
+# `page_impressions*` a nivel de Página, así que Facebook se queda SIN
+# impresiones y SIN alcance. Lo que sí publica son las impresiones orgánicas de
+# sus publicaciones, que es lo que alimenta `visualizaciones` (el mismo concepto
+# que el `views` de Instagram). Ver la cabecera de `meta_organico._MAPA_FB_DIA`.
 SOPORTE_METRICA_SOCIAL: dict[str, set[str]] = {
-    "impresiones": {"Facebook", "LinkedIn"},
+    "impresiones": {"LinkedIn"},
     "visualizaciones": {"YouTube", "Facebook", "Instagram", "LinkedIn"},
-    "alcance": {"Facebook", "Instagram", "LinkedIn"},
+    "alcance": {"Instagram", "LinkedIn"},
     "seguidores_nuevos": {"YouTube", "Facebook", "Instagram", "LinkedIn"},
     "likes": {"YouTube", "Facebook", "Instagram", "LinkedIn"},
     "comentarios": {"YouTube", "Facebook", "Instagram", "LinkedIn"},

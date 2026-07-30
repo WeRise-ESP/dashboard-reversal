@@ -43,26 +43,48 @@ _VERSION_POR_DEFECTO = "v21.0"
 
 # Métrica normalizada -> nombres de Page Insights a probar, en orden de
 # preferencia. El primero que la API acepte es el que se usa.
+# ⚠️ Nombres VERIFICADOS contra la Página real (1229909610199926) el 30-jul-2026
+# sondeando 30 candidatos uno a uno. Meta ha retirado toda la familia
+# `page_impressions*` a nivel de Página: `page_impressions`,
+# `page_impressions_organic`, `page_impressions_organic_v2` y
+# `page_impressions_unique` responden «(#100) The value must be a valid insights
+# metric». Lo que sobrevive son las impresiones de las PUBLICACIONES.
+#
+# Si vuelves a tocar esto, sondea antes: `scripts/verificar_social.py --red Meta`
+# prueba cada candidato y dice cuál acepta la cuenta. No añadas nombres "por si
+# acaso" que midan otra cosa: un fallback que mide algo distinto es peor que un
+# nulo, porque nadie se entera.
 _MAPA_FB_DIA = {
-    "impresiones": ["page_impressions_organic_v2", "page_impressions_organic",
-                    "page_impressions"],
-    "alcance": ["page_impressions_unique"],
-    # "Views" unificadas de Meta; si la Página no las expone, cae a vídeo (y si
-    # tampoco, queda a nulo, que es preferible a inventar el dato).
-    "visualizaciones": ["views", "page_views", "page_video_views"],
-    "seguidores_nuevos": ["page_fan_adds_unique", "page_fan_adds", "page_follows"],
+    # Facebook NO publica alcance: no existe ningún nombre válido (probados
+    # page_impressions_unique, page_reach, page_daily_reach, page_posts_*_unique).
+    # Por eso Facebook está fuera de SOPORTE_METRICA_SOCIAL["alcance"].
+    #
+    # `visualizaciones` = impresiones orgánicas de las publicaciones. Es el mismo
+    # concepto que el `views` de Instagram («veces que tu contenido se mostró o
+    # reprodujo»); Meta lo renombró en Instagram y no en Facebook. NO se usa
+    # page_video_views, que solo cuenta vídeo y dejaría a Facebook artificialmente
+    # pequeño en el KPI que se compara entre redes.
+    "visualizaciones": ["page_posts_impressions_organic"],
+    "seguidores_nuevos": ["page_daily_follows_unique", "page_daily_follows",
+                          "page_follows"],
     # Requiere pages_messaging; sin ese permiso queda a nulo.
     "mensajes": ["page_messages_new_conversations_unique"],
 }
 
+# Instagram: solo `reach` y `follower_count` vienen como serie diaria. Todo lo
+# demás (views, likes, comments, shares, saves, profile_views…) la API lo exige
+# con metric_type=total_value, que devuelve UN número por consulta en vez de una
+# serie — ver `_ig_views_por_dia`.
 _MAPA_IG_DIA = {
-    "visualizaciones": ["views", "impressions"],
     "alcance": ["reach"],
     # ⚠️ La API solo devuelve follower_count de los últimos 30 días. Para un
     # periodo más largo Meta da error y esta métrica queda a nulo: el histórico
-    # anterior solo se puede cubrir con los CSV importados.
+    # anterior solo se cubre con el job diario o con los CSV importados.
     "seguidores_nuevos": ["follower_count"],
 }
+
+# Tope de días a los que se pide `views` de Instagram: una llamada por día.
+_TOPE_DIAS_VIEWS_IG = 100
 
 # Tope de publicaciones a las que se piden insights (una llamada por publicación).
 # Si se alcanza, el conector lo dice en el `detalle` para que la UI no dé a
@@ -243,9 +265,43 @@ def _ig_user_id(creds: dict, page_id: str, page_token: str) -> str:
     return cuenta
 
 
+# Días por petición de insights. Meta rechaza rangos largos, y no igual en
+# todas las métricas: `follower_count` de Instagram solo admite 30 días. Pedir
+# 730 de golpe no devuelve "lo que haya", devuelve un error y la métrica entera
+# se pierde — así se quedaron vacíos `alcance` y `seguidores_nuevos` en la
+# primera captura real. Se trocea en ventanas y se van uniendo.
+_DIAS_POR_PETICION = 30
+
+
+def _trocear(desde, hasta, dias: int = _DIAS_POR_PETICION):
+    """Parte [desde, hasta] en ventanas de como mucho `dias`, de la más reciente
+    a la más antigua: si la API corta por antigüedad, lo que se pierde es lo
+    viejo, no lo de esta semana."""
+    ini = pd.Timestamp(desde).date()
+    fin = pd.Timestamp(hasta).date()
+    ventanas = []
+    while fin >= ini:
+        arranque = max(ini, fin - timedelta(days=dias - 1))
+        ventanas.append((arranque, fin))
+        fin = arranque - timedelta(days=1)
+    return ventanas
+
+
 def _insights_tolerante(version: str, objeto_id: str, token: str,
                         mapa: dict[str, list[str]], desde, hasta,
                         ) -> dict[str, dict]:
+    """Pide `mapa` troceando el periodo, y une las ventanas que respondan."""
+    unido: dict[str, dict] = {}
+    for ini, fin in _trocear(desde, hasta):
+        trozo = _insights_de_ventana(version, objeto_id, token, mapa, ini, fin)
+        for metrica, serie in trozo.items():
+            unido.setdefault(metrica, {}).update(serie)
+    return unido
+
+
+def _insights_de_ventana(version: str, objeto_id: str, token: str,
+                         mapa: dict[str, list[str]], desde, hasta,
+                         ) -> dict[str, dict]:
     """Pide insights y devuelve {metrica_normalizada: {fecha: valor}}.
 
     Prueba los nombres candidatos de cada métrica en bloque. Si el bloque falla
@@ -339,7 +395,15 @@ def _api_fb_diario(creds: dict, desde, hasta) -> pd.DataFrame:
 
     # Likes y comentarios de la Página no son métricas de Page Insights: se
     # agregan desde las publicaciones del periodo.
-    df = _sumar_engagement_de_posts(df, _api_fb_posts(creds, desde, hasta), RED_FB)
+    #
+    # Va en try porque listar las publicaciones necesita OTRO permiso
+    # (`pages_read_user_content`) distinto del de los insights. Sin él, esta
+    # llamada falla y antes se llevaba por delante las métricas diarias, que sí
+    # funcionaban. Si falla, el engagement queda a NULO y el resto se salva.
+    try:
+        df = _sumar_engagement_de_posts(df, _api_fb_posts(creds, desde, hasta), RED_FB)
+    except Exception:  # noqa: BLE001
+        pass
 
     if not df.empty:
         total = _seguidores_pagina(version, page_id, token)
@@ -437,13 +501,61 @@ def _sumar_engagement_de_posts(diario: pd.DataFrame, posts: pd.DataFrame,
 # Instagram
 # --------------------------------------------------------------------------- #
 
-def _api_ig_diario(creds: dict, desde, hasta) -> pd.DataFrame:
+def _ig_views_por_dia(version: str, ig: str, token: str, desde, hasta) -> dict:
+    """{fecha: views} de Instagram, pidiendo DÍA A DÍA.
+
+    `views` no admite serie diaria: la API obliga a `metric_type=total_value`,
+    que devuelve un único número agregado del rango consultado. Para llenar el
+    esquema diario hay que consultar cada día por separado — una llamada por
+    día. Verificado contra la cuenta real: 28-jul-2026 → 6.162 views.
+
+    Por eso NO se llama al pintar la página (sería un puñado de llamadas por
+    cada cambio de rango): lo hace el job diario, que paga 1 llamada al día y lo
+    acumula en el histórico. Ver `scripts/snapshot_social.py`.
+
+    Un día que falle se omite del resultado, y acaba como NULO en el DataFrame:
+    nunca como 0.
+    """
+    dias = [d.date() for d in pd.date_range(desde, hasta, freq="D")]
+    if len(dias) > _TOPE_DIAS_VIEWS_IG:
+        dias = dias[-_TOPE_DIAS_VIEWS_IG:]  # los más recientes
+
+    out = {}
+    for d in dias:
+        try:
+            r = _get(version, f"{ig}/insights", token, {
+                "metric": "views", "metric_type": "total_value", "period": "day",
+                "since": str(d), "until": str(d + timedelta(days=1))})
+            valor = ((r.get("data") or [{}])[0].get("total_value") or {}).get("value")
+            if valor is not None:
+                out[d] = valor
+        except Exception:  # noqa: BLE001
+            continue
+    return out
+
+
+def _api_ig_diario(creds: dict, desde, hasta, con_views: bool = False) -> pd.DataFrame:
+    """Métricas diarias de Instagram.
+
+    `con_views` activa el sondeo día a día de `views` (una llamada por día). Lo
+    usa el job diario; la página lo deja apagado y lee esa columna del
+    histórico, que `social_base.resolver` funde por debajo.
+    """
     version = _version(creds)
     ig, token = _contexto_ig(creds)
 
     series = _insights_tolerante(version, ig, token, _MAPA_IG_DIA, desde, hasta)
+    if con_views:
+        views = _ig_views_por_dia(version, ig, token, desde, hasta)
+        if views:
+            series["visualizaciones"] = views
     df = _series_a_df(series, RED_IG)
-    df = _sumar_engagement_de_posts(df, _api_ig_posts(creds, desde, hasta), RED_IG)
+    # Mismo motivo que en Facebook: si listar las publicaciones falla, no debe
+    # arrastrar a las métricas de cuenta que sí se han obtenido.
+    try:
+        df = _sumar_engagement_de_posts(df, _api_ig_posts(creds, desde, hasta), RED_IG)
+    except Exception:  # noqa: BLE001
+        pass
 
     if not df.empty:
         try:

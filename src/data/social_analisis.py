@@ -64,3 +64,91 @@ def comparar_kpis(actual: pd.DataFrame, anterior: pd.DataFrame,
         filas.append({"metrica": metrica, "etiqueta": etiqueta,
                       "actual": act, "anterior": ant, "delta_pct": delta})
     return pd.DataFrame(filas)
+
+
+# --------------------------------------------------------------------------- #
+# Rendimiento de publicaciones
+# --------------------------------------------------------------------------- #
+
+def criterio_ranking(red: str) -> str:
+    """Por qué se ordenan las publicaciones de esta red.
+
+    Lo normal es la TASA de engagement: ordenar por likes brutos hace ganar
+    siempre a la publicación más vista, que es una observación circular («lo
+    que más se vio es lo que más se vio»).
+
+    Facebook es la excepción: solo sus vídeos y reels traen visualizaciones, así
+    que en las estáticas no hay denominador y la tasa sale nula. Sus
+    publicaciones se ordenan por interacciones absolutas, y la UI lo dice.
+
+    El criterio se decide AQUÍ y en ningún otro sitio: el día que la mayoría de
+    las publicaciones de Facebook sean vídeo, cambiarlo es una línea.
+    """
+    return "interacciones" if red == "Facebook" else "engagement"
+
+
+def _con_puntuacion(posts: pd.DataFrame, red: str) -> pd.DataFrame:
+    """Añade la columna `puntuacion` con la que se ordena esa red."""
+    from src.data import social
+
+    d = posts[posts["red"] == red].copy()
+    if d.empty:
+        return d
+    if criterio_ranking(red) == "engagement":
+        d["puntuacion"] = social.tasa_engagement(d)
+    else:
+        d["puntuacion"] = social.interacciones(d)
+    return d
+
+
+def ranking(posts: pd.DataFrame, red: str, n: int = 3,
+            mejores: bool = True) -> pd.DataFrame:
+    """Las `n` mejores (o peores) publicaciones de una red.
+
+    Las publicaciones sin puntuación se descartan: no se puede afirmar que una
+    publicación sin datos sea la peor.
+    """
+    if posts is None or posts.empty:
+        return posts if posts is not None else pd.DataFrame()
+    d = _con_puntuacion(posts, red)
+    if d.empty:
+        return d
+    d = d[d["puntuacion"].notna()]
+    return d.sort_values("puntuacion", ascending=not mejores).head(n)
+
+
+def hay_muestra_para_bottom(posts: pd.DataFrame, red: str) -> bool:
+    """Si hay publicaciones suficientes para que «las peores» signifiquen algo.
+
+    Con dos publicaciones, «la peor» es simplemente «la segunda».
+    """
+    if posts is None or posts.empty:
+        return False
+    return int((posts["red"] == red).sum()) >= config.MIN_PUBLICACIONES_BOTTOM
+
+
+def por_formato(posts: pd.DataFrame, red: str) -> pd.DataFrame:
+    """Media por tipo de publicación (Reel, Carrusel, Short, Vídeo…).
+
+    Es el bloque que responde «qué publico la semana que viene». Solo aparecen
+    los formatos con al menos `config.MIN_PUBLICACIONES_FORMATO` publicaciones:
+    una media de una sola no es una media, y ponerla al lado de otra de doce
+    invita a compararlas como si pesaran igual.
+    """
+    from src.data import social
+
+    if posts is None or posts.empty:
+        return pd.DataFrame(columns=["tipo", "n", "visualizaciones_media",
+                                     "engagement_medio"])
+    d = posts[posts["red"] == red].copy()
+    if d.empty:
+        return pd.DataFrame(columns=["tipo", "n", "visualizaciones_media",
+                                     "engagement_medio"])
+    d["_eng"] = social.tasa_engagement(d)
+    g = d.groupby("tipo", dropna=False).agg(
+        n=("post_id", "count"),
+        visualizaciones_media=("visualizaciones", "mean"),
+        engagement_medio=("_eng", "mean"),
+    ).reset_index()
+    return g[g["n"] >= config.MIN_PUBLICACIONES_FORMATO].sort_values(
+        "n", ascending=False).reset_index(drop=True)

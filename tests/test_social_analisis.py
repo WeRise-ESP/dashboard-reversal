@@ -2,6 +2,7 @@ from datetime import date
 
 import pandas as pd
 
+from src import config
 from src.data import social, social_analisis as sa
 
 
@@ -52,3 +53,51 @@ def test_solo_mira_la_red_pedida():
     ], ignore_index=True)
     r = sa.comparar_kpis(act, social.esquema_diario_vacio(), "Instagram").set_index("metrica")
     assert r.loc["visualizaciones", "actual"] == 120
+
+
+def _posts(red, filas):
+    return social.normalizar_posts(pd.DataFrame([{"red": red, **f} for f in filas]))
+
+
+def test_el_ranking_ordena_por_engagement_no_por_likes():
+    """Ordenar por likes hace ganar siempre a la más vista, que es circular."""
+    p = _posts("Instagram", [
+        {"post_id": "muy_vista", "tipo": "Reel", "visualizaciones": 10000, "likes": 100},
+        {"post_id": "muy_buena", "tipo": "Reel", "visualizaciones": 100, "likes": 50},
+    ])
+    r = sa.ranking(p, "Instagram", n=1, mejores=True)
+    assert list(r["post_id"]) == ["muy_buena"]
+
+
+def test_facebook_se_ordena_por_interacciones():
+    """Solo sus vídeos traen visualizaciones, así que no hay denominador."""
+    assert sa.criterio_ranking("Facebook") == "interacciones"
+    assert sa.criterio_ranking("Instagram") == "engagement"
+    p = _posts("Facebook", [
+        {"post_id": "a", "tipo": "Publicación", "likes": 1, "comentarios": 0, "compartidos": 0},
+        {"post_id": "b", "tipo": "Publicación", "likes": 9, "comentarios": 2, "compartidos": 1},
+    ])
+    r = sa.ranking(p, "Facebook", n=1, mejores=True)
+    assert list(r["post_id"]) == ["b"]
+
+
+def test_sin_muestra_no_hay_bottom():
+    p = _posts("Facebook", [{"post_id": str(i), "tipo": "Publicación", "likes": i}
+                            for i in range(2)])
+    assert sa.hay_muestra_para_bottom(p, "Facebook") is False
+
+
+def test_con_muestra_suficiente_si_hay_bottom():
+    p = _posts("Facebook", [{"post_id": str(i), "tipo": "Publicación", "likes": i}
+                            for i in range(config.MIN_PUBLICACIONES_BOTTOM)])
+    assert sa.hay_muestra_para_bottom(p, "Facebook") is True
+
+
+def test_por_formato_omite_los_formatos_con_pocas_publicaciones():
+    """Una media de 1 publicación no es una media."""
+    filas = [{"post_id": f"r{i}", "tipo": "Reel", "visualizaciones": 100, "likes": 10}
+             for i in range(config.MIN_PUBLICACIONES_FORMATO)]
+    filas.append({"post_id": "c1", "tipo": "Carrusel", "visualizaciones": 9999, "likes": 1})
+    r = sa.por_formato(_posts("Instagram", filas), "Instagram")
+    assert set(r["tipo"]) == {"Reel"}
+    assert int(r.iloc[0]["n"]) == config.MIN_PUBLICACIONES_FORMATO

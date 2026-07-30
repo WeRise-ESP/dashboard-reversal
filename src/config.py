@@ -517,10 +517,12 @@ METRICA_COMPARABLE = "visualizaciones"
 # así que este agregado SÍ es comparable entre redes.
 METRICAS_INTERACCION = ("likes", "comentarios", "compartidos")
 
-# Cuentas de social orgánico (TODO: rellenar cuando lleguen los accesos).
+# Cuentas de social orgánico. Los IDs NO son secretos (son públicos en la propia
+# ficha de cada perfil), así que viven aquí y no en secrets.toml: lo único que
+# hace falta poner en secrets es el token de cada red.
 YOUTUBE_CHANNEL_ID = ""        # TODO "UC..." — youtube.com/account_advanced
-SOCIAL_FACEBOOK_PAGE_ID = ""   # TODO — Meta Business Suite → Configuración
-SOCIAL_INSTAGRAM_USER_ID = ""  # se deriva de la Página si está vacío
+SOCIAL_FACEBOOK_PAGE_ID = "1229909610199926"    # Página "Reversal Institute"
+SOCIAL_INSTAGRAM_USER_ID = "17841409682113567"  # @reversal_institute
 LINKEDIN_ORGANIZATION_ID = ""  # TODO — /company/XXXXXXX/admin
 
 # El social orgánico se mueve despacio y sus APIs tienen cuotas ajustadas.

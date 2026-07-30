@@ -1,7 +1,12 @@
 """
 Genera el REFRESH TOKEN de LinkedIn para la página de Reversal Institute.
 
-    python scripts/linkedin_refresh_token.py <CLIENT_ID> <CLIENT_SECRET>
+    python scripts/linkedin_refresh_token.py <CLIENT_ID>
+
+El Client Secret NO se pasa como argumento: el script lo pide por teclado sin
+mostrarlo. Un secreto en la línea de comandos acaba en el historial del shell,
+en la lista de procesos y en cualquier captura de pantalla de la terminal.
+Si necesitas automatizarlo, usa la variable de entorno LINKEDIN_CLIENT_SECRET.
 
 Requisitos previos, en la app **ReversalLinkd** (linkedin.com/developers/apps):
 
@@ -9,10 +14,16 @@ Requisitos previos, en la app **ReversalLinkd** (linkedin.com/developers/apps):
   2. Pestaña *Products* → **Community Management API** concedida.
      ⚠️ Tiene que ser el ÚNICO producto de la app: no convive con Marketing
      Developer Platform. Si añades otro, la app queda inservible.
-  3. Pestaña *Auth* → *Authorized redirect URLs* → añade EXACTAMENTE:
+  3. Pestaña *Auth* → *Authorized redirect URLs*. Por defecto el script usa
          http://localhost:8765/callback
-     LinkedIn compara la URL carácter a carácter; si no coincide, el login
-     falla con redirect_uri_mismatch antes de pedirte permiso siquiera.
+     pero si ya tienes registrada otra, pásala tal cual con --redirect y no
+     hace falta tocar nada en LinkedIn:
+         --redirect http://localhost:3000/auth/callback
+
+     ⚠️ LinkedIn compara la URL carácter a carácter. «The redirect_uri does not
+     match the registered value» significa que hay alguna diferencia, por
+     pequeña que sea: http vs https, localhost vs 127.0.0.1, una barra final
+     de más, otro puerto, u otra ruta. Copia y pega, no la escribas a mano.
 
 Al ejecutarlo se imprime una URL: ábrela con una cuenta **administradora de la
 página de Reversal Institute** y acepta. El script recoge la respuesta, canjea
@@ -28,8 +39,9 @@ día que caduque, LinkedIn deja de dar datos sin más aviso.
 from __future__ import annotations
 
 import argparse
+import getpass
+import os
 import secrets as _secrets
-import sys
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -67,13 +79,27 @@ class _Recoge(BaseHTTPRequestHandler):
 def main() -> int:
     p = argparse.ArgumentParser(description="Refresh token de LinkedIn.")
     p.add_argument("client_id")
-    p.add_argument("client_secret")
-    p.add_argument("--puerto", type=int, default=8765,
-                   help="debe coincidir con la redirect URL registrada (8765)")
+    p.add_argument("--redirect", default="http://localhost:8765/callback",
+                   help="la redirect URL EXACTA que tengas en la pestaña Auth "
+                        "de la app (por defecto http://localhost:8765/callback)")
     p.add_argument("--scopes", default=SCOPES_POR_DEFECTO)
     args = p.parse_args()
 
-    redirect = f"http://localhost:{args.puerto}/callback"
+    client_secret = os.environ.get("LINKEDIN_CLIENT_SECRET") or getpass.getpass(
+        "Client Secret (no se muestra al teclear): ").strip()
+    if not client_secret:
+        print("✗ Sin Client Secret no se puede canjear el código.")
+        return 1
+
+    redirect = args.redirect
+    partes = urllib.parse.urlparse(redirect)
+    if partes.scheme != "http" or partes.hostname not in ("localhost", "127.0.0.1"):
+        print(f"✗ --redirect tiene que apuntar a este equipo para poder recoger "
+              f"la respuesta, y ser http://localhost:… o http://127.0.0.1:…\n"
+              f"  Has pasado: {redirect}")
+        return 1
+    puerto = partes.port or 80
+
     estado = _secrets.token_urlsafe(16)
     url = f"{AUTORIZAR}?" + urllib.parse.urlencode({
         "response_type": "code",
@@ -87,7 +113,7 @@ def main() -> int:
     print(url + "\n")
     print(f"Esperando el callback en {redirect} …")
 
-    servidor = HTTPServer(("localhost", args.puerto), _Recoge)
+    servidor = HTTPServer((partes.hostname, puerto), _Recoge)
     servidor.handle_request()
     servidor.server_close()
     datos = _Recoge.resultado
@@ -110,7 +136,7 @@ def main() -> int:
         "grant_type": "authorization_code",
         "code": datos["code"],
         "client_id": args.client_id,
-        "client_secret": args.client_secret,
+        "client_secret": client_secret,
         "redirect_uri": redirect,
     }, timeout=60)
     if r.status_code != 200:
@@ -133,7 +159,7 @@ def main() -> int:
     print("=" * 68)
     print("[linkedin]")
     print(f'client_id       = "{args.client_id}"')
-    print(f'client_secret   = "{args.client_secret}"')
+    print('client_secret   = "…"   # el que acabas de teclear')
     print(f'refresh_token   = "{refresh}"')
     print('organization_id = "123114024"   # ya está en config.py; opcional aquí')
     print('version         = "202506"')

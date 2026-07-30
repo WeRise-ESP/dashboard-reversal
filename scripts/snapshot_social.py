@@ -276,7 +276,9 @@ def main() -> int:
         capturadas += 1
 
     print("\nDemografía de audiencia:")
-    for f in [x for x in FUENTES_DEMOGRAFIA if not args.red or x.red in args.red]:
+    fuentes_demografia = [x for x in FUENTES_DEMOGRAFIA if not args.red or x.red in args.red]
+    demografia_capturadas = 0
+    for f in fuentes_demografia:
         df, motivo = capturar_demografia(f, desde, hasta)
         if df is None:
             print(f"  ⏭  {f.red:<10} saltada — {motivo}")
@@ -291,6 +293,7 @@ def main() -> int:
                   f"→ {len(fusion)} en total ({dims})")
         else:
             print(f"  ✓  {f.red:<10} +{nuevas} filas → {len(fusion)} en total ({dims})")
+        demografia_capturadas += 1
     if not args.red or "Facebook" in args.red:
         print("  ·  Facebook   sin demografía: Meta la retiró de las Páginas")
 
@@ -301,9 +304,22 @@ def main() -> int:
             if not _leer_secreto(f.seccion):
                 print(f"  · {f.red}: la API da {f.limite}. "
                       "Cuanto más tarde se conecte, más histórico se pierde.")
-    # Sin ninguna red capturada el job no ha hecho su trabajo: hay que enterarse
-    # desde el cron, así que sale con código de error.
-    return 0 if capturadas else 1
+
+    # La demografía es append-only: un día sin capturar no se recupera nunca,
+    # así que un fallo sistemático de sus tres fuentes es tan grave como que
+    # falle la fase diaria — tiene que verse desde el cron, no quedar tapado
+    # por un `capturadas` de la otra fase que sí fue bien. `fuentes_demografia`
+    # vacía (p. ej. `--red Facebook`, que no tiene demografía) no cuenta como
+    # fallo: ahí no había nada que capturar.
+    fallo_demografia = bool(fuentes_demografia) and demografia_capturadas == 0
+    if fallo_demografia:
+        print("\n⚠️  Las fuentes de demografía han fallado todas: el histórico "
+              "de audiencia no ha crecido hoy.")
+
+    # Sin ninguna red capturada el job no ha hecho su trabajo, y un fallo total
+    # de la demografía tampoco: hay que enterarse desde el cron, así que sale
+    # con código de error en cualquiera de los dos casos.
+    return 0 if (capturadas and not fallo_demografia) else 1
 
 
 if __name__ == "__main__":

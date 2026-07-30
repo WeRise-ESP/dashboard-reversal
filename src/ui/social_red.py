@@ -146,12 +146,39 @@ def _enlace(titulo, url) -> str:
 
 
 def filas_publicaciones(posts: pd.DataFrame, red: str) -> pd.DataFrame:
-    """Publicaciones de una red listas para `ui.tabla`, con el texto escapado."""
+    """Publicaciones de una red listas para `ui.tabla`, con el texto escapado.
+
+    El `titulo` sale con HTML (`<a href=...>`) a propósito: el destino es
+    SIEMPRE `ui.tabla` (que lo pinta con `st.markdown(unsafe_allow_html=True)`),
+    nunca `st.dataframe` — ese no interpreta HTML y lo enseñaría crudo tal
+    cual, con las entidades de `html.escape` incluidas.
+    """
     d = posts[posts["red"] == red].copy()
     if d.empty:
         return d
     d["titulo"] = [_enlace(t, u) for t, u in zip(d["titulo"], d["url"])]
     return d
+
+
+_COLUMNAS_PUBLICACIONES_BASE = [
+    {"key": "fecha", "label": "Fecha", "align": "l"},
+    {"key": "tipo", "label": "Tipo", "align": "l"},
+    {"key": "titulo", "label": "Publicación", "align": "l", "bold": True},
+]
+
+
+def _columnas_publicaciones(metricas: list[str] | None = None) -> list[dict]:
+    """Columnas para `ui.tabla` de una tabla de publicaciones.
+
+    `metricas` añade, al final, una columna numérica por cada clave (formateada
+    con `num_o_guion`, que respeta la regla nulo≠cero) — la usa la tabla de
+    «todas las publicaciones»; las de mejores/peores solo llevan las tres base.
+    """
+    columnas = list(_COLUMNAS_PUBLICACIONES_BASE)
+    for m in metricas or []:
+        columnas.append({"key": m, "label": config.METRICAS_POST.get(m, m),
+                         "fmt": num_o_guion})
+    return columnas
 
 
 def nota_criterio(red: str) -> str:
@@ -188,14 +215,12 @@ def bloque_contenido(posts: pd.DataFrame, red: str) -> None:
     with col_a:
         st.markdown("**Mejores publicaciones**")
         top = sa.ranking(posts, red, n=3, mejores=True)
-        st.dataframe(filas_publicaciones(top, red)[["fecha", "tipo", "titulo"]],
-                     hide_index=True, width="stretch")
+        ui.tabla(filas_publicaciones(top, red), _columnas_publicaciones())
     with col_b:
         st.markdown("**Peores publicaciones**")
         if sa.hay_muestra_para_bottom(posts, red):
             bot = sa.ranking(posts, red, n=3, mejores=False)
-            st.dataframe(filas_publicaciones(bot, red)[["fecha", "tipo", "titulo"]],
-                         hide_index=True, width="stretch")
+            ui.tabla(filas_publicaciones(bot, red), _columnas_publicaciones())
         else:
             st.info(f"Hacen falta al menos {config.MIN_PUBLICACIONES_BOTTOM} "
                     f"publicaciones para que «las peores» signifiquen algo. "
@@ -219,9 +244,8 @@ def bloque_contenido(posts: pd.DataFrame, red: str) -> None:
                    "publicaciones, que es el mínimo para que una media diga algo.")
 
     st.markdown("**Todas las publicaciones**")
-    cols = ["fecha", "tipo", "titulo"] + [
-        m for m in config.METRICAS_POST if config.soporta_metrica(m, red, "post")]
-    st.dataframe(filas_publicaciones(d, red)[cols], hide_index=True, width="stretch")
+    metricas = [m for m in config.METRICAS_POST if config.soporta_metrica(m, red, "post")]
+    ui.tabla(filas_publicaciones(d, red), _columnas_publicaciones(metricas))
 
 
 def bloque_audiencia(demografia: pd.DataFrame, red: str, hasta) -> None:

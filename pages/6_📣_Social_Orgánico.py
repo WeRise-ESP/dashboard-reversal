@@ -25,6 +25,19 @@ st.set_page_config(page_title="Social orgánico · Reversal", page_icon="📣",
 aplicar_tema()
 
 desde, hasta, etq = ui.selector_periodo()
+
+# El periodo anterior se resuelve AQUÍ, antes que el actual, y no al final del
+# fichero (donde se usa). `social_base.resolver` guarda en disco la última
+# respuesta de la API (`guardar_cache`) y esa caché NO está indexada por rango:
+# guarda una ventana por conector, la que se haya resuelto en ÚLTIMO lugar. Si
+# `datos_ant` se resolviera después de `datos` —como ocurría antes—, los
+# parquet se quedarían con la ventana VIEJA: el primer nivel de reserva de la
+# cascada apuntando a un rango sin intersección con lo que el usuario mira.
+# Resolviendo el periodo anterior primero, es `datos` quien escribe último y
+# la caché en disco queda alineada con la pantalla.
+d_ant, h_ant = social_analisis.periodo_anterior(desde, hasta)
+datos_ant = loader.cargar_social(d_ant, h_ant)
+
 datos = loader.cargar_social(desde, hasta)
 ui.aviso_origenes(
     datos.origenes,
@@ -314,13 +327,15 @@ with tab_resumen:
 # --------------------------------------------------------------------------- #
 # Una pestaña por red
 #
-# Los KPIs del periodo anterior se piden con su propio rango: `cargar_social`
-# está cacheada por (desde, hasta), así que esta segunda llamada reutiliza la
-# caché entre pestañas en vez de repetir ocho llamadas a las APIs.
+# `datos_ant` (el periodo anterior, para los KPIs con variación) ya se resolvió
+# arriba, junto al selector de periodo — ver el comentario de allí sobre por
+# qué el orden importa para la caché en disco. `cargar_social` está cacheada
+# por (desde, hasta) con `st.cache_data`, así que esa caché EN MEMORIA sí se
+# reutiliza entre pestañas dentro del mismo rerun; lo que no se reutiliza es la
+# llamada a las APIs cuando el usuario cambia de periodo: cada rango nuevo
+# cuesta 16 resoluciones de conector (8 del periodo actual + 8 del anterior),
+# no 8.
 # --------------------------------------------------------------------------- #
-d_ant, h_ant = social_analisis.periodo_anterior(desde, hasta)
-datos_ant = loader.cargar_social(d_ant, h_ant)
-
 for tab, red in zip(tabs_red, config.REDES_SOCIAL):
     with tab:
         if datos.origenes.get(red) == "sample":

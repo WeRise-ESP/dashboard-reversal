@@ -44,3 +44,26 @@ def test_una_metrica_que_falla_no_tumba_las_demas(monkeypatch):
     out = m._insights_post_fb("v21.0", "p1", "tok")
     assert "clics" not in out
     assert out["visualizaciones"] == 5
+
+
+def test_publicacion_estatica_no_deja_visualizaciones_a_cero(monkeypatch):
+    """Regresión: una publicación ESTÁTICA no es vídeo ni reel. Verificado
+    contra la Página real el 30-jul-2026: `post_video_views` responde 0 para
+    ella en vez de fallar la llamada. Ese 0 significa «esta métrica no aplica
+    aquí», no «cero reproducciones» — la especificación dice literal que «su
+    casilla va a nulo, no a cero». Escribirlo falsearía la tabla de
+    publicaciones, la media por formato y metería a Facebook en el ranking de
+    visualizaciones de la pestaña Resumen con un 0 en vez de dejarlo fuera."""
+    monkeypatch.setattr(m, "_get", lambda v, ruta, tok, params: _bloques(
+        ("post_video_views", 0)))
+    out = m._insights_post_fb("v21.0", "p1", "tok")
+    assert "visualizaciones" not in out
+
+
+def test_cero_clics_si_se_conserva(monkeypatch):
+    """A diferencia de las visualizaciones, 0 clics es un dato real: nadie ha
+    hecho clic. Debe conservarse, no descartarse como si fuera "sin dato"."""
+    monkeypatch.setattr(m, "_get", lambda v, ruta, tok, params: _bloques(
+        ("post_clicks", 0)))
+    out = m._insights_post_fb("v21.0", "p1", "tok")
+    assert out["clics"] == 0

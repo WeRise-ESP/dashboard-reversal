@@ -476,6 +476,17 @@ _METRICAS_POST_FB = {
     "post_clicks": "clics",
 }
 
+# Claves cuyo 0 NO es un dato real. Verificado contra la Página real el
+# 30-jul-2026: en una publicación ESTÁTICA (ni vídeo ni reel), `post_video_views`
+# responde 0 en vez de fallar la llamada — la especificación dice literal que
+# «su casilla va a nulo, no a cero». Ese 0 significa «esta métrica no aplica
+# aquí», no «cero reproducciones»; escribirlo falsearía la tabla de
+# publicaciones, la media por formato y colaría a Facebook en el ranking de
+# visualizaciones con un 0 en vez de dejarlo fuera. `clics` (post_clicks) NO
+# está en este conjunto a propósito: ahí un 0 SÍ es un dato real —nadie hizo
+# clic— y debe conservarse.
+_CLAVES_CERO_NO_REAL = {"visualizaciones"}
+
 # `post_reactions_by_type_total` existe y responde, pero devuelve un DICCIONARIO
 # (me gusta / me encanta / me sorprende…), no un número. El esquema de
 # publicaciones es numérico y `social.normalizar_posts` descarta lo que no está
@@ -508,12 +519,14 @@ def _insights_post_fb(version: str, post_id: str, token: str) -> dict:
                 continue
             valores = bloque.get("values") or [{}]
             valor = valores[0].get("value")
-            # `visualizaciones` la pueden llenar dos métricas (vídeo y reels):
-            # gana la primera que traiga un valor real.
-            if valor in (None, {}, 0) and clave in out:
+            if valor is None or valor == {}:
                 continue
-            if valor is not None:
-                out[clave] = valor
+            if valor == 0 and clave in _CLAVES_CERO_NO_REAL:
+                continue
+            # `visualizaciones` la pueden llenar dos métricas (vídeo y reels):
+            # se procesan en el orden de `_METRICAS_POST_FB` y gana la ÚLTIMA
+            # que traiga un valor real (cada asignación machaca a la anterior).
+            out[clave] = valor
     return out
 
 
@@ -703,18 +716,24 @@ def _api_ig_demografia(creds: dict, fecha) -> pd.DataFrame:
 
     filas = []
     for desglose, dimension in _DESGLOSES_IG.items():
+        # El parseo de la respuesta va DENTRO del try, no solo la llamada: si
+        # Meta cambia la forma de `total_value` (ya se llevó por delante toda
+        # la demografía de Facebook), el error tiene que perderse aquí, no
+        # escapar del bucle. Si escapara, subiría hasta `capturar_demografia` y
+        # se perderían TAMBIÉN los otros desgloses que sí habían funcionado —
+        # y la demografía es append-only: un día perdido no se recupera nunca.
         try:
             r = _get(version, f"{ig}/insights", token, {
                 "metric": "follower_demographics", "period": "lifetime",
                 "metric_type": "total_value", "breakdown": desglose,
                 "timeframe": "this_month"})
+            bloques = (r.get("data") or [{}])[0].get("total_value", {}).get("breakdowns", [])
+            for res in (bloques[0].get("results", []) if bloques else []):
+                valores = res.get("dimension_values") or []
+                if not valores:
+                    continue
+                filas.append({"fecha": fecha, "red": RED_IG, "dimension": dimension,
+                              "categoria": valores[0], "valor": res.get("value")})
         except Exception:  # noqa: BLE001
             continue
-        bloques = (r.get("data") or [{}])[0].get("total_value", {}).get("breakdowns", [])
-        for res in (bloques[0].get("results", []) if bloques else []):
-            valores = res.get("dimension_values") or []
-            if not valores:
-                continue
-            filas.append({"fecha": fecha, "red": RED_IG, "dimension": dimension,
-                          "categoria": valores[0], "valor": res.get("value")})
     return pd.DataFrame(filas)

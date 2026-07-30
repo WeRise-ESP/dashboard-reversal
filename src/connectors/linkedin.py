@@ -27,6 +27,8 @@ Estado: capa de API SIN VERIFICAR contra la página real (no hay acceso todavía
 """
 from __future__ import annotations
 
+from datetime import date as _date
+
 import pandas as pd
 
 from src import config
@@ -289,3 +291,53 @@ def _stats_por_post(creds: dict, token: str, org: str,
             if urn:
                 out[urn] = e.get("totalShareStatistics", {}) or {}
     return out
+
+
+# --------------------------------------------------------------------------- #
+# Demografía de seguidores
+# --------------------------------------------------------------------------- #
+
+# Campo de la respuesta -> (clave del elemento, dimensión del esquema).
+_DESGLOSES_LI = {
+    "followerCountsByStaffCountRange": ("staffCountRange", "tamano_empresa"),
+    "followerCountsByIndustry": ("industry", "sector"),
+    "followerCountsByFunction": ("function", "funcion"),
+    "followerCountsBySeniority": ("seniority", "cargo"),
+    "followerCountsByGeoCountry": ("geo", "pais"),
+}
+
+
+def _api_demografia(creds: dict) -> pd.DataFrame:
+    """Demografía de los seguidores de la organización, en el esquema largo.
+
+    ⚠️ LinkedIn NO publica edad ni género en ninguna versión de su API. Lo que
+    da es profesional: cargo, función, sector, tamaño de empresa y país. Para
+    una certificación dirigida a sanitarios eso es más útil que la edad, pero
+    no es lo mismo y la UI no debe insinuar que sí.
+
+    Los valores vienen como URN (`urn:li:industry:14`). Se guarda el URN tal
+    cual: traducirlo a nombre legible exige otra llamada por cada uno, y la UI
+    puede hacerlo cuando haya acceso real y se sepa el volumen.
+
+    Estado: SIN VERIFICAR contra la organización real — la Community Management
+    API está en revisión desde el 30-jul-2026.
+    """
+    token = _token(creds)
+    org = _org_urn(creds)
+    datos = _get("organizationalEntityFollowerStatistics", creds, token,
+                 {"q": "organizationalEntity", "organizationalEntity": org})
+
+    elementos = datos.get("elements") or []
+    if not elementos:
+        return pd.DataFrame()
+
+    hoy = _date.today()
+    filas = []
+    for campo, (clave, dimension) in _DESGLOSES_LI.items():
+        for item in elementos[0].get(campo, []):
+            valor = (item.get("followerCounts") or {}).get("organicFollowerCount")
+            if valor is None:
+                continue
+            filas.append({"fecha": hoy, "red": RED, "dimension": dimension,
+                          "categoria": item.get(clave), "valor": valor})
+    return pd.DataFrame(filas)

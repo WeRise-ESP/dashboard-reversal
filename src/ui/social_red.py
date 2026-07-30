@@ -12,9 +12,8 @@ import pandas as pd
 import streamlit as st
 
 from src import config
-from src.data import social_analisis as sa
 from src.ui import components as ui
-from src.ui.theme import num_o_guion, pct_o_guion
+from src.ui.theme import num_o_guion
 
 
 def metricas_de_la_red(red: str) -> dict[str, str]:
@@ -28,8 +27,16 @@ def metricas_de_la_red(red: str) -> dict[str, str]:
 
 
 def _pct(x: float) -> str:
-    """Porcentaje con coma decimal y signo explícito."""
-    return f"{'+' if x > 0 else ''}{x:,.1f}".replace(".", ",") + "%"
+    """Porcentaje con coma decimal, punto de miles y signo explícito.
+
+    El intercambio se hace en tres pasos con un carácter puente para que el
+    punto acabe de separador de miles y la coma de decimal (convención
+    española), sin que un paso pise al otro. A partir de ±1000% hacen falta
+    los dos separadores: sin punto de miles, "+2.400,0%" saldría "+2,400,0%",
+    con dos comas e ilegible.
+    """
+    txt = f"{x:,.1f}".replace(",", "·").replace(".", ",").replace("·", ".")
+    return f"{'+' if x > 0 else ''}{txt}%"
 
 
 def frases_titular(kpis: pd.DataFrame, red: str) -> list[str]:

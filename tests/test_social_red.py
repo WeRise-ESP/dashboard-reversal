@@ -48,3 +48,13 @@ def test_el_titular_no_inventa_variacion_sin_periodo_anterior():
     texto = " ".join(frases)
     assert "Visualizaciones" in texto
     assert "%" not in texto
+
+
+def test_pct_no_confunde_miles_con_decimales():
+    """A partir de +1000% el separador de miles y el decimal son distintos
+    caracteres (punto y coma); si no, `2.400,0%` sale como `2,400,0%`, con dos
+    comas, y es ilegible. Una variación de cuatro cifras es normal cuando el
+    «anterior» es pequeño (mensajes, seguidores nuevos de una cuenta joven)."""
+    assert sr._pct(2400.0) == "+2.400,0%"
+    assert sr._pct(-1234.5) == "-1.234,5%"
+    assert sr._pct(12.1) == "+12,1%"

@@ -58,3 +58,40 @@ def test_pct_no_confunde_miles_con_decimales():
     assert sr._pct(2400.0) == "+2.400,0%"
     assert sr._pct(-1234.5) == "-1.234,5%"
     assert sr._pct(12.1) == "+12,1%"
+
+
+from datetime import date
+
+from src.data import social, social_demografia as sd
+
+
+def test_el_texto_de_las_publicaciones_va_escapado():
+    """`ui.tabla` inyecta HTML sin escapar y los títulos vienen de una API."""
+    p = social.normalizar_posts(pd.DataFrame([{
+        "red": "Instagram", "post_id": "1", "tipo": "Reel",
+        "titulo": "<script>alert(1)</script>", "url": "https://x.test",
+        "visualizaciones": 10, "likes": 1}]))
+    filas = sr.filas_publicaciones(p, "Instagram")
+    assert "<script>" not in filas.iloc[0]["titulo"]
+    assert "&lt;script&gt;" in filas.iloc[0]["titulo"]
+
+
+def test_la_url_no_http_no_se_convierte_en_enlace():
+    p = social.normalizar_posts(pd.DataFrame([{
+        "red": "Instagram", "post_id": "1", "tipo": "Reel",
+        "titulo": "hola", "url": "javascript:alert(1)",
+        "visualizaciones": 10, "likes": 1}]))
+    filas = sr.filas_publicaciones(p, "Instagram")
+    assert "javascript:" not in filas.iloc[0]["titulo"]
+
+
+def test_el_aviso_de_criterio_dice_como_se_ordena_facebook():
+    assert "interacciones" in sr.nota_criterio("Facebook").lower()
+    assert "engagement" in sr.nota_criterio("Instagram").lower()
+
+
+def test_la_audiencia_declara_su_unidad():
+    """Instagram cuenta personas; YouTube, % de visualizaciones."""
+    assert "sigue" in sr.nota_unidad("Instagram").lower()
+    assert "%" in sr.nota_unidad("YouTube")
+    assert sr.nota_unidad("Facebook") == ""

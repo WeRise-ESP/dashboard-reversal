@@ -8,12 +8,16 @@ desaparecer o salir vacío: esa asimetría es información.
 """
 from __future__ import annotations
 
+import html
+
 import pandas as pd
 import streamlit as st
 
 from src import config
+from src.data import social_analisis as sa
+from src.data import social_demografia as sd
 from src.ui import components as ui
-from src.ui.theme import num_o_guion
+from src.ui.theme import num_o_guion, pct_o_guion
 
 
 def metricas_de_la_red(red: str) -> dict[str, str]:
@@ -125,3 +129,140 @@ def bloque_evolucion(diario: pd.DataFrame, red: str, key: str) -> None:
     ui.linea_temporal(serie, x="fecha", y="valor", color="red",
                       titulo=f"{elegida} por día", y_label=elegida,
                       simbolos=config.SIMBOLO_RED_SOCIAL)
+
+
+def _enlace(titulo, url) -> str:
+    """Título escapado, como enlace solo si la URL es http(s).
+
+    `ui.tabla` inyecta HTML sin escapar y estos títulos vienen de una API, así
+    que escapar aquí no es opcional. Y solo se aceptan esquemas http/https:
+    un `javascript:` en un href sería ejecutable.
+    """
+    texto = html.escape(str(titulo or ""))
+    u = str(url or "")
+    if u.startswith(("http://", "https://")):
+        return f'<a href="{html.escape(u)}" target="_blank">{texto}</a>'
+    return texto
+
+
+def filas_publicaciones(posts: pd.DataFrame, red: str) -> pd.DataFrame:
+    """Publicaciones de una red listas para `ui.tabla`, con el texto escapado."""
+    d = posts[posts["red"] == red].copy()
+    if d.empty:
+        return d
+    d["titulo"] = [_enlace(t, u) for t, u in zip(d["titulo"], d["url"])]
+    return d
+
+
+def nota_criterio(red: str) -> str:
+    """Explica por qué está ordenado así el ranking de esa red."""
+    if sa.criterio_ranking(red) == "interacciones":
+        return ("Ordenado por interacciones: Facebook solo publica "
+                "visualizaciones en vídeo y reels, así que no hay denominador "
+                "para calcular la tasa de engagement.")
+    return "Ordenado por tasa de engagement (interacciones ÷ visualizaciones)."
+
+
+def nota_unidad(red: str) -> str:
+    """La unidad de la demografía, escrita DENTRO del bloque."""
+    unidad = sd.UNIDAD_POR_RED.get(red)
+    if not unidad:
+        return ""
+    if unidad == "pct_visualizaciones":
+        return ("Estos son % de las **visualizaciones**, no de tus "
+                "suscriptores: describen quién consume, no cuánta gente eres. "
+                "No son comparables con los de Instagram.")
+    return "Personas que te **siguen**."
+
+
+def bloque_contenido(posts: pd.DataFrame, red: str) -> None:
+    d = posts[posts["red"] == red]
+    n = len(d)
+    if n == 0:
+        st.info("Sin publicaciones de esta red en el periodo.")
+        return
+
+    st.caption(f"{n} publicaciones en el periodo. {nota_criterio(red)}")
+
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.markdown("**Mejores publicaciones**")
+        top = sa.ranking(posts, red, n=3, mejores=True)
+        st.dataframe(filas_publicaciones(top, red)[["fecha", "tipo", "titulo"]],
+                     hide_index=True, width="stretch")
+    with col_b:
+        st.markdown("**Peores publicaciones**")
+        if sa.hay_muestra_para_bottom(posts, red):
+            bot = sa.ranking(posts, red, n=3, mejores=False)
+            st.dataframe(filas_publicaciones(bot, red)[["fecha", "tipo", "titulo"]],
+                         hide_index=True, width="stretch")
+        else:
+            st.info(f"Hacen falta al menos {config.MIN_PUBLICACIONES_BOTTOM} "
+                    f"publicaciones para que «las peores» signifiquen algo. "
+                    f"Ahora hay {n}.")
+
+    formatos = sa.por_formato(posts, red)
+    if not formatos.empty:
+        st.markdown("**Rendimiento por formato**")
+        ui.tabla(pd.DataFrame([{
+            "tipo": f["tipo"], "n": num_o_guion(f["n"]),
+            "vis": num_o_guion(f["visualizaciones_media"]),
+            "eng": pct_o_guion(f["engagement_medio"]),
+        } for _, f in formatos.iterrows()]), [
+            {"key": "tipo", "label": "Formato", "align": "l"},
+            {"key": "n", "label": "Publicaciones", "align": "r"},
+            {"key": "vis", "label": "Visualizaciones (media)", "align": "r"},
+            {"key": "eng", "label": "Engagement (media)", "align": "r"},
+        ])
+    else:
+        st.caption(f"Ningún formato llega a {config.MIN_PUBLICACIONES_FORMATO} "
+                   "publicaciones, que es el mínimo para que una media diga algo.")
+
+    st.markdown("**Todas las publicaciones**")
+    cols = ["fecha", "tipo", "titulo"] + [
+        m for m in config.METRICAS_POST if config.soporta_metrica(m, red, "post")]
+    st.dataframe(filas_publicaciones(d, red)[cols], hide_index=True, width="stretch")
+
+
+def bloque_audiencia(demografia: pd.DataFrame, red: str, hasta) -> None:
+    if red not in sd.UNIDAD_POR_RED:
+        st.info("Facebook no publica demografía de audiencia: Meta retiró esas "
+                "métricas de las Páginas en 2025 y no hay sustituto.")
+        return
+
+    foto = sd.ultima_foto(demografia, red, hasta)
+    if foto.empty:
+        st.info("Todavía no hay demografía capturada de esta red. La recoge "
+                "`scripts/snapshot_social.py` en su ejecución diaria.")
+        return
+
+    st.caption(f"{nota_unidad(red)}  ·  Captura del {foto.iloc[0]['fecha']}.")
+
+    for dimension in ("edad", "genero", "pais", "ciudad",
+                      "cargo", "funcion", "sector", "tamano_empresa"):
+        d = foto[foto["dimension"] == dimension]
+        if d.empty:
+            continue
+        st.markdown(f"**{dimension.replace('_', ' ').capitalize()}**")
+        ui.barras_horizontales(
+            d.sort_values("valor", ascending=False).head(10),
+            etiqueta_col="categoria", valor_col="valor",
+            x_label=sd.etiqueta_unidad(str(d.iloc[0]["unidad"])))
+
+
+def pestana(red: str, diario: pd.DataFrame, posts: pd.DataFrame,
+            demografia: pd.DataFrame, kpis: pd.DataFrame, hasta) -> None:
+    """Los cinco bloques de una red, siempre en el mismo orden."""
+    bloque_titular(kpis, red)
+
+    st.subheader("Rendimiento")
+    bloque_kpis(kpis)
+
+    st.subheader("Evolución")
+    bloque_evolucion(diario, red, key=f"metrica_{red}")
+
+    st.subheader("Contenido")
+    bloque_contenido(posts, red)
+
+    st.subheader("Audiencia")
+    bloque_audiencia(demografia, red, hasta)

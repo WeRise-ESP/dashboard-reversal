@@ -647,3 +647,44 @@ def _insights_post_ig(version: str, media_id: str, token: str) -> dict:
         if out:
             return out
     return {}
+
+
+# Desglose de la API -> nombre de dimensión del esquema.
+_DESGLOSES_IG = {"age": "edad", "gender": "genero",
+                 "city": "ciudad", "country": "pais"}
+
+
+def _api_ig_demografia(creds: dict, fecha) -> pd.DataFrame:
+    """Demografía de los seguidores de Instagram, en el esquema largo.
+
+    `follower_demographics` es una métrica «lifetime» que exige
+    `metric_type=total_value` y un `breakdown` por consulta: son cuatro
+    llamadas, una por dimensión.
+
+    Cada desglose va en su propio try: si Meta retira uno —ya se llevó por
+    delante toda la demografía de Facebook— los otros tres tienen que seguir
+    entrando. Lo que falle no aparece, y acaba como ausencia, no como cero.
+
+    Verificado contra @reversal_institute el 30-jul-2026: 6 tramos de edad,
+    3 de género, 45 ciudades y 6 países.
+    """
+    version = _version(creds)
+    ig, token = _contexto_ig(creds)
+
+    filas = []
+    for desglose, dimension in _DESGLOSES_IG.items():
+        try:
+            r = _get(version, f"{ig}/insights", token, {
+                "metric": "follower_demographics", "period": "lifetime",
+                "metric_type": "total_value", "breakdown": desglose,
+                "timeframe": "this_month"})
+        except Exception:  # noqa: BLE001
+            continue
+        bloques = (r.get("data") or [{}])[0].get("total_value", {}).get("breakdowns", [])
+        for res in (bloques[0].get("results", []) if bloques else []):
+            valores = res.get("dimension_values") or []
+            if not valores:
+                continue
+            filas.append({"fecha": fecha, "red": RED_IG, "dimension": dimension,
+                          "categoria": valores[0], "valor": res.get("value")})
+    return pd.DataFrame(filas)

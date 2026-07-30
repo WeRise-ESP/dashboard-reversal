@@ -233,3 +233,52 @@ def _tipo_por_duracion(iso: str) -> str:
         cab = resto[:-1]
         segundos = int(cab) if cab.isdigit() else 0
     return "Short" if minutos * 60 + segundos <= 180 else "Vídeo"
+
+
+# Género de la API -> categoría del esquema, alineada con la de Instagram.
+_GENERO_YT = {"female": "F", "male": "M", "user_specified": "U", "gender_other": "U"}
+
+
+def _api_demografia(creds: dict, desde, hasta) -> pd.DataFrame:
+    """Demografía de la audiencia de YouTube, en el esquema largo.
+
+    ⚠️ Esto NO es la demografía de tus suscriptores: `viewerPercentage` es el
+    porcentaje de VISUALIZACIONES por tramo en el periodo. Otra población y
+    otra unidad que la de Instagram, que cuenta personas. `social_demografia`
+    lo marca con la unidad `pct_visualizaciones` y la UI lo escribe en el
+    bloque.
+
+    Los tramos vienen como «age45-54»; se les quita el prefijo para que
+    coincidan con los de Instagram y puedan compartir eje (nunca gráfico).
+    """
+    analytics, _ = _servicios(creds)
+    canal = _canal(creds)
+    ids = f"channel=={canal}" if canal else "channel==MINE"
+    base = dict(ids=ids, startDate=str(desde), endDate=str(hasta))
+
+    filas = []
+    try:
+        r = analytics.reports().query(
+            **base, metrics="viewerPercentage", dimensions="ageGroup,gender").execute()
+        por_edad: dict[str, float] = {}
+        for tramo, genero, pct in (fila[:3] for fila in r.get("rows", [])):
+            etiqueta = str(tramo).removeprefix("age")
+            por_edad[etiqueta] = por_edad.get(etiqueta, 0.0) + float(pct)
+            filas.append({"fecha": hasta, "red": RED, "dimension": "genero",
+                          "categoria": _GENERO_YT.get(genero, "U"), "valor": pct})
+        for etiqueta, pct in por_edad.items():
+            filas.append({"fecha": hasta, "red": RED, "dimension": "edad",
+                          "categoria": etiqueta, "valor": round(pct, 2)})
+    except Exception:  # noqa: BLE001
+        pass
+
+    try:
+        r = analytics.reports().query(
+            **base, metrics="views", dimensions="country").execute()
+        for pais, vistas in (fila[:2] for fila in r.get("rows", [])):
+            filas.append({"fecha": hasta, "red": RED, "dimension": "pais",
+                          "categoria": pais, "valor": vistas})
+    except Exception:  # noqa: BLE001
+        pass
+
+    return pd.DataFrame(filas)

@@ -319,6 +319,12 @@ def _api_demografia(creds: dict) -> pd.DataFrame:
     cual: traducirlo a nombre legible exige otra llamada por cada uno, y la UI
     puede hacerlo cuando haya acceso real y se sepa el volumen.
 
+    Si un item no trae la clave de categoría (p. ej. `industry`), se salta:
+    una fila con `categoria=None` no sirve para nada en la UI, y aquí la duda
+    vale más que en ningún otro conector porque la forma real de la respuesta
+    no se ha visto nunca (ver `_api_ig_demografia` en meta_organico.py, que
+    aplica la misma guarda).
+
     Estado: SIN VERIFICAR contra la organización real — la Community Management
     API está en revisión desde el 30-jul-2026.
     """
@@ -336,8 +342,9 @@ def _api_demografia(creds: dict) -> pd.DataFrame:
     for campo, (clave, dimension) in _DESGLOSES_LI.items():
         for item in elementos[0].get(campo, []):
             valor = (item.get("followerCounts") or {}).get("organicFollowerCount")
-            if valor is None:
+            categoria = item.get(clave)
+            if valor is None or not categoria:
                 continue
             filas.append({"fecha": hoy, "red": RED, "dimension": dimension,
-                          "categoria": item.get(clave), "valor": valor})
+                          "categoria": categoria, "valor": valor})
     return pd.DataFrame(filas)

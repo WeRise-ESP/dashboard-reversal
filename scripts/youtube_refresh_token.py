@@ -1,10 +1,19 @@
 """
 Genera el REFRESH TOKEN de YouTube (canal de Reversal Institute).
 
-    python scripts/youtube_refresh_token.py <CLIENT_ID> <CLIENT_SECRET>
+    python scripts/youtube_refresh_token.py <CLIENT_ID>
     python scripts/youtube_refresh_token.py <ruta/al/client_secret.json>
 
-Requisitos previos, en el proyecto de Google Cloud donde ya vive GA4:
+El Client Secret no se pasa como argumento: se pide por teclado sin mostrarlo,
+porque un secreto en la línea de comandos acaba en el historial del shell y en
+cualquier captura de la terminal. Para automatizar, YOUTUBE_CLIENT_SECRET.
+
+⚠️ ANTES DE NADA, la pantalla de consentimiento OAuth tiene que estar en
+«En producción», NO en «Prueba». En modo prueba Google caduca los refresh token
+a los 7 DÍAS: el job funcionaría una semana y moriría en silencio.
+
+Requisitos previos, en el proyecto de Google Cloud donde ya vive GA4
+(prefab-kit-497615-d1):
   1. Habilitar **YouTube Data API v3** y **YouTube Analytics API**.
      https://console.cloud.google.com/apis/library/youtube.googleapis.com
      https://console.cloud.google.com/apis/library/youtubeanalytics.googleapis.com
@@ -18,6 +27,8 @@ canal, el conector deja de funcionar y hay que regenerarlo con otra cuenta.
 
 Los scopes son de SOLO LECTURA: no permiten publicar, editar ni borrar nada.
 """
+import getpass
+import os
 import sys
 
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -32,8 +43,13 @@ def _flow_desde_args():
     args = sys.argv[1:]
     if len(args) == 1 and args[0].endswith(".json"):
         return InstalledAppFlow.from_client_secrets_file(args[0], SCOPES)
-    if len(args) == 2:
-        client_id, client_secret = args
+    if len(args) == 1:
+        client_id = args[0]
+        client_secret = os.environ.get("YOUTUBE_CLIENT_SECRET") or getpass.getpass(
+            "Client Secret (no se muestra al teclear): ").strip()
+        if not client_secret:
+            print("✗ Sin Client Secret no se puede completar el flujo.")
+            sys.exit(1)
         config = {
             "installed": {
                 "client_id": client_id,
@@ -45,8 +61,9 @@ def _flow_desde_args():
         }
         return InstalledAppFlow.from_client_config(config, SCOPES)
     print("Uso:")
-    print("  python scripts/youtube_refresh_token.py <CLIENT_ID> <CLIENT_SECRET>")
+    print("  python scripts/youtube_refresh_token.py <CLIENT_ID>")
     print("  python scripts/youtube_refresh_token.py <client_secret.json>")
+    print("\nEl Client Secret se pide por teclado; no se pasa como argumento.")
     sys.exit(1)
 
 

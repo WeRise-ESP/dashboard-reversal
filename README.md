@@ -101,10 +101,31 @@ independiente en cuanto llega su credencial; que falte una no afecta a las demá
 |---|---|---|
 | **YouTube** | Habilitar YouTube Data API v3 + YouTube Analytics API en el proyecto de Cloud de GA4, crear un OAuth client de tipo *Desktop* y generar el refresh token con la cuenta **propietaria del canal** (Analytics no admite service account). | [APIs](https://console.cloud.google.com/apis/library/youtubeanalytics.googleapis.com) · [Credenciales](https://console.cloud.google.com/apis/credentials) · [Channel ID](https://www.youtube.com/account_advanced) |
 | **Facebook + Instagram** | Token del System User con `pages_show_list`, `pages_read_engagement`, `read_insights`, `instagram_basic`, `instagram_manage_insights` (+ `pages_messaging` para mensajes) **y asignar la Página al System User**. El token de `[meta_ads]` NO sirve: solo tiene `ads_*`. | [System Users](https://business.facebook.com/settings/system-users) · [Depurador de tokens](https://developers.facebook.com/tools/debug/accesstoken/) |
-| **LinkedIn** | App **nueva y dedicada** (Community Management API no convive con otros productos), verificada contra la Company Page, y solicitud de acceso con revisión manual. Development Tier basta. | [Crear app](https://www.linkedin.com/developers/apps/new) · [Requisitos](https://learn.microsoft.com/en-us/linkedin/marketing/community-management-app-review) |
+| **LinkedIn** | ⏳ **Solicitud enviada el 30-jul-2026, en revisión.** Nada que hacer salvo esperar y responder al correo de verificación. Cuando llegue la aprobación: `python scripts/linkedin_refresh_token.py 77hl0lbpekgnae`. | [App](https://www.linkedin.com/developers/apps) · [Requisitos](https://learn.microsoft.com/en-us/linkedin/marketing/community-management-app-review) |
 
 Secciones de `secrets.toml`: `[youtube]`, `[social_meta]` y `[linkedin]` (ver el
-encabezado de cada conector en `src/connectors/`).
+encabezado de cada conector en `src/connectors/`). Comprueba cualquiera de ellas
+con `python scripts/verificar_social.py`.
+
+### Estado de LinkedIn (30-jul-2026)
+
+| | |
+|---|---|
+| App | client id `77hl0lbpekgnae`, Community Management API como **único** producto |
+| Página verificada | ✅ contra *Reversal Institute* (`organization_id` 123114024) |
+| Redirect URL | ✅ `http://localhost:8765/callback` |
+| Formulario de acceso | ✅ enviado — Development Tier, caso de uso *Page analytics* (solo lectura) |
+| Pendiente | ⏳ revisión de LinkedIn |
+
+⚠️ **Vigilad el correo de Microsoft Vetting Services** en la dirección de
+empresa: LinkedIn verifica la entidad por ahí y, si no se contesta, la solicitud
+se queda parada sin más aviso. Puede pedir documentación adicional.
+
+La solicitud va a nombre de **Risetech Solutions, S.L.**, que es la razón social
+—*Reversal* y *Reversal — Longevity & Healthspan Institute* son nombres
+comerciales—. El resto de datos registrales están en el aviso legal de
+reversal.institute. Que la página de LinkedIn se llame distinto que la empresa
+es justo lo que hay que explicar en cualquier formulario de este tipo.
 
 **Histórico:** las APIs no llegan igual de atrás (YouTube todo · Facebook ~2 años
 · LinkedIn 12 meses · **Instagram solo 30 días de seguidores**). Lo anterior solo

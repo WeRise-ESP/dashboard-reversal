@@ -156,6 +156,74 @@ def resumen_ejecutivo(texto: str) -> None:
     )
 
 
+def tabla_ordenable(df: pd.DataFrame, columnas: list[dict],
+                    altura: int | None = None) -> None:
+    """Tabla que se ORDENA pulsando el encabezado de cualquier columna.
+
+    Se apoya en `st.dataframe`, que trae la ordenación de serie, en vez de en
+    `tabla()`, que pinta HTML estático y por tanto no se puede ordenar.
+
+    La diferencia importante frente a `tabla()`: aquí los números viajan como
+    NÚMEROS, no como texto ya formateado. Es lo que permite ordenar de verdad —
+    con cadenas, «1.000» quedaría antes que «9» — y por eso el formateo se
+    delega a Streamlit vía `column_config` en vez de aplicarlo antes.
+
+    Consecuencia a tener presente: un nulo se ve como CELDA VACÍA, no como «—».
+    La distinción que importa se mantiene —vacío es «esta red no publica el
+    dato» y `0` es un cero real— pero conviene decirlo al pie de cada tabla.
+
+    Y otra: `st.dataframe` NO interpreta HTML, así que aquí el texto va crudo.
+    No lo escapes antes de pasarlo: se vería el `&#x27;` de cada apóstrofo.
+
+    `columnas`: lista de dicts con
+        key    -> columna del df
+        label  -> encabezado
+        tipo   -> "texto" (por defecto) · "numero" · "decimal" · "porcentaje"
+                  · "fecha" · "enlace" · "imagen"
+        ayuda  -> tooltip del encabezado (opcional)
+        ancho  -> "small" | "medium" | "large" (opcional)
+    """
+    if df is None or df.empty:
+        st.info("Sin datos.")
+        return
+
+    presentes = [c for c in columnas if c["key"] in df.columns]
+    if not presentes:
+        st.info("Sin datos.")
+        return
+
+    config = {}
+    for c in presentes:
+        comun = {"label": c["label"], "help": c.get("ayuda"),
+                 "width": c.get("ancho")}
+        tipo = c.get("tipo", "texto")
+        if tipo == "numero":
+            config[c["key"]] = st.column_config.NumberColumn(format="localized", **comun)
+        elif tipo == "decimal":
+            config[c["key"]] = st.column_config.NumberColumn(format="%.2f", **comun)
+        elif tipo == "porcentaje":
+            config[c["key"]] = st.column_config.NumberColumn(format="percent", **comun)
+        elif tipo == "fecha":
+            config[c["key"]] = st.column_config.DateColumn(format="DD/MM/YYYY", **comun)
+        elif tipo == "enlace":
+            # `validate` es la protección real de esta columna: `LinkColumn` sí
+            # renderiza un enlace pulsable, así que sin filtro un `javascript:`
+            # llegado de un CSV importado sería ejecutable. El resto de columnas
+            # no necesitan escapado porque `st.dataframe` no interpreta HTML,
+            # pero esta es la excepción.
+            config[c["key"]] = st.column_config.LinkColumn(
+                display_text=c.get("texto_enlace", "Abrir"),
+                validate=r"^https?://", **comun)
+        elif tipo == "imagen":
+            config[c["key"]] = st.column_config.ImageColumn(**comun)
+        else:
+            config[c["key"]] = st.column_config.TextColumn(**comun)
+
+    extra = {"height": altura} if altura else {}
+    st.dataframe(df[[c["key"] for c in presentes]], column_config=config,
+                 hide_index=True, width="stretch", **extra)
+
+
 def tabla(df: pd.DataFrame, columnas: list[dict], etiqueta_col: str | None = None,
           total_label: str = "TOTAL") -> None:
     """Renderiza un DataFrame como tabla HTML con formato, negrita en la fila

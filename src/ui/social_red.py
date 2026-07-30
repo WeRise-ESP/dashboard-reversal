@@ -93,18 +93,19 @@ def bloque_kpis(kpis: pd.DataFrame) -> None:
         st.info("Sin métricas para esta red en el periodo.")
         return
 
-    filas = [{
-        "metrica": k["etiqueta"],
-        "actual": num_o_guion(k["actual"]),
-        "anterior": num_o_guion(k["anterior"]),
-        "delta": "—" if pd.isna(k["delta_pct"]) else _pct(float(k["delta_pct"])),
-    } for _, k in kpis.iterrows()]
-
-    ui.tabla(pd.DataFrame(filas), [
-        {"key": "metrica", "label": "Métrica", "align": "l"},
-        {"key": "actual", "label": "Periodo", "align": "r"},
-        {"key": "anterior", "label": "Anterior", "align": "r"},
-        {"key": "delta", "label": "Δ", "align": "r"},
+    # Los valores viajan como NÚMEROS para que la tabla se pueda ordenar; el
+    # formateo lo pone `column_config`. Ordenar por Δ es lo que responde «qué se
+    # ha caído más este periodo», que es media razón de ser de esta tabla.
+    # Se usa `etiqueta` (el nombre legible) y NO se renombra a `metrica`: el df
+    # ya trae una columna con ese nombre —la clave interna— y renombrar dejaba
+    # dos columnas iguales, que revientan al serializar a Arrow.
+    ui.tabla_ordenable(kpis, [
+        {"key": "etiqueta", "label": "Métrica"},
+        {"key": "actual", "label": "Periodo", "tipo": "numero"},
+        {"key": "anterior", "label": "Anterior", "tipo": "numero"},
+        {"key": "delta_pct", "label": "Δ %", "tipo": "decimal",
+         "ayuda": "Variación frente al periodo anterior. Vacío = no hay "
+                  "histórico con el que comparar."},
     ])
 
     if kpis["anterior"].isna().all():
@@ -157,45 +158,50 @@ def _texto_seguro(v):
 
 
 def filas_publicaciones(posts: pd.DataFrame, red: str) -> pd.DataFrame:
-    """Publicaciones de una red listas para `ui.tabla`, con el texto escapado.
+    """Publicaciones de una red listas para `ui.tabla_ordenable`.
 
-    El `titulo` sale con HTML (`<a href=...>`) a propósito: el destino es
-    SIEMPRE `ui.tabla` (que lo pinta con `st.markdown(unsafe_allow_html=True)`),
-    nunca `st.dataframe` — ese no interpreta HTML y lo enseñaría crudo tal
-    cual, con las entidades de `html.escape` incluidas.
+    El texto va CRUDO, sin escapar, y las métricas siguen siendo NÚMEROS. Las
+    dos cosas son requisito de `st.dataframe`, que es lo que da la ordenación
+    por encabezado:
 
-    `fecha` y `tipo` viajan por el mismo camino y, aunque hoy los cuatro
-    conectores fijan `tipo` desde mapas cerrados, `data/import_social/*.csv`
-    es un nivel de la cascada (`social_base.resolver`) cuyo contenido llega
-    intacto hasta aquí: hay que escaparlos igual que el título, no solo él.
+    - No interpreta HTML, así que escapar aquí solo conseguiría que se viera un
+      `&#x27;` por cada apóstrofo de un pie de foto. Y como no lo interpreta,
+      tampoco hay nada que inyectar: la protección viene de que el destino no
+      renderiza, no de escapar antes.
+    - Ordenar exige números de verdad. Formateados como texto, «1.000» quedaría
+      antes que «9»; por eso el formateo se delega a `column_config`.
+
+    La fecha se convierte a datetime para que ordene cronológicamente y no
+    alfabéticamente, que con el formato dd/mm/aaaa daría un orden absurdo.
     """
     d = posts[posts["red"] == red].copy()
     if d.empty:
         return d
-    d["titulo"] = [_enlace(t, u) for t, u in zip(d["titulo"], d["url"])]
-    d["tipo"] = [_texto_seguro(t) for t in d["tipo"]]
-    d["fecha"] = [_texto_seguro(f) for f in d["fecha"]]
+    d["fecha"] = pd.to_datetime(d["fecha"], errors="coerce")
     return d
 
 
 _COLUMNAS_PUBLICACIONES_BASE = [
-    {"key": "fecha", "label": "Fecha", "align": "l"},
-    {"key": "tipo", "label": "Tipo", "align": "l"},
-    {"key": "titulo", "label": "Publicación", "align": "l", "bold": True},
+    {"key": "fecha", "label": "Fecha", "tipo": "fecha", "ancho": "small"},
+    {"key": "tipo", "label": "Formato", "ancho": "small"},
+    {"key": "titulo", "label": "Publicación", "ancho": "large"},
+    {"key": "url", "label": "Ver", "tipo": "enlace", "texto_enlace": "Abrir",
+     "ancho": "small"},
 ]
 
 
 def _columnas_publicaciones(metricas: list[str] | None = None) -> list[dict]:
-    """Columnas para `ui.tabla` de una tabla de publicaciones.
+    """Columnas para `ui.tabla_ordenable` de una tabla de publicaciones.
 
-    `metricas` añade, al final, una columna numérica por cada clave (formateada
-    con `num_o_guion`, que respeta la regla nulo≠cero) — la usa la tabla de
-    «todas las publicaciones»; las de mejores/peores solo llevan las tres base.
+    El enlace va en columna propia en vez de envolver el título porque
+    `LinkColumn` solo sabe mostrar un texto fijo o uno extraído de la propia
+    URL, no el valor de otra columna. A cambio, el título queda como texto y se
+    puede ordenar alfabéticamente.
     """
     columnas = list(_COLUMNAS_PUBLICACIONES_BASE)
     for m in metricas or []:
         columnas.append({"key": m, "label": config.METRICAS_POST.get(m, m),
-                         "fmt": num_o_guion})
+                         "tipo": "numero"})
     return columnas
 
 
@@ -233,12 +239,13 @@ def bloque_contenido(posts: pd.DataFrame, red: str) -> None:
     with col_a:
         st.markdown("**Mejores publicaciones**")
         top = sa.ranking(posts, red, n=3, mejores=True)
-        ui.tabla(filas_publicaciones(top, red), _columnas_publicaciones())
+        ui.tabla_ordenable(filas_publicaciones(top, red), _columnas_publicaciones())
     with col_b:
         st.markdown("**Peores publicaciones**")
         if sa.hay_muestra_para_bottom(posts, red):
             bot = sa.ranking(posts, red, n=3, mejores=False)
-            ui.tabla(filas_publicaciones(bot, red), _columnas_publicaciones())
+            ui.tabla_ordenable(filas_publicaciones(bot, red),
+                               _columnas_publicaciones())
         else:
             st.info(f"Hacen falta al menos {config.MIN_PUBLICACIONES_BOTTOM} "
                     f"publicaciones para que «las peores» signifiquen algo. "
@@ -247,15 +254,12 @@ def bloque_contenido(posts: pd.DataFrame, red: str) -> None:
     formatos = sa.por_formato(posts, red)
     if not formatos.empty:
         st.markdown("**Rendimiento por formato**")
-        ui.tabla(pd.DataFrame([{
-            "tipo": _texto_seguro(f["tipo"]), "n": num_o_guion(f["n"]),
-            "vis": num_o_guion(f["visualizaciones_media"]),
-            "eng": pct_o_guion(f["engagement_medio"]),
-        } for _, f in formatos.iterrows()]), [
-            {"key": "tipo", "label": "Formato", "align": "l"},
-            {"key": "n", "label": "Publicaciones", "align": "r"},
-            {"key": "vis", "label": "Visualizaciones (media)", "align": "r"},
-            {"key": "eng", "label": "Engagement (media)", "align": "r"},
+        ui.tabla_ordenable(formatos.rename(columns={
+            "visualizaciones_media": "vis", "engagement_medio": "eng"}), [
+            {"key": "tipo", "label": "Formato"},
+            {"key": "n", "label": "Publicaciones", "tipo": "numero"},
+            {"key": "vis", "label": "Visualizaciones (media)", "tipo": "numero"},
+            {"key": "eng", "label": "Engagement (media)", "tipo": "porcentaje"},
         ])
     else:
         st.caption(f"Ningún formato llega a {config.MIN_PUBLICACIONES_FORMATO} "
@@ -263,7 +267,12 @@ def bloque_contenido(posts: pd.DataFrame, red: str) -> None:
 
     st.markdown("**Todas las publicaciones**")
     metricas = [m for m in config.METRICAS_POST if config.soporta_metrica(m, red, "post")]
-    ui.tabla(filas_publicaciones(d, red), _columnas_publicaciones(metricas))
+    ui.tabla_ordenable(filas_publicaciones(d, red), _columnas_publicaciones(metricas))
+    st.caption(
+        "Pulsa el encabezado de cualquier columna para ordenar. Una celda "
+        "**vacía** significa que esa red no publica ese dato por API; un **0** "
+        "es un cero real."
+    )
 
 
 def bloque_audiencia(demografia: pd.DataFrame, red: str, hasta) -> None:

@@ -65,38 +65,69 @@ from datetime import date
 from src.data import social, social_demografia as sd
 
 
-def test_el_texto_de_las_publicaciones_va_escapado():
-    """`ui.tabla` inyecta HTML sin escapar y los títulos vienen de una API."""
+def test_el_texto_va_crudo_porque_el_destino_no_interpreta_html():
+    """Las tablas de publicaciones son ordenables, o sea `st.dataframe`, que NO
+    interpreta HTML. Escapar aquí solo conseguiría que se viera un `&#x27;` por
+    cada apóstrofo de un pie de foto — y no protege de nada, porque no hay nada
+    que inyectar: la protección viene de que el destino no renderiza."""
     p = social.normalizar_posts(pd.DataFrame([{
         "red": "Instagram", "post_id": "1", "tipo": "Reel",
-        "titulo": "<script>alert(1)</script>", "url": "https://x.test",
+        "titulo": "<script>alert(1)</script> L'Oreal", "url": "https://x.test",
         "visualizaciones": 10, "likes": 1}]))
-    filas = sr.filas_publicaciones(p, "Instagram")
-    assert "<script>" not in filas.iloc[0]["titulo"]
-    assert "&lt;script&gt;" in filas.iloc[0]["titulo"]
+    fila = sr.filas_publicaciones(p, "Instagram").iloc[0]
+    assert fila["titulo"] == "<script>alert(1)</script> L'Oreal"
+    assert "&#x27;" not in fila["titulo"]
+    assert "&lt;" not in fila["titulo"]
 
 
-def test_el_tipo_va_escapado():
-    """`tipo` llega sin pasar por un mapa cerrado cuando viene de
-    `data/import_social/*.csv` (un nivel documentado de la cascada) y `ui.tabla`
-    inyecta HTML sin escapar: un `tipo` hostil no debe ejecutarse."""
+def test_no_se_genera_html_en_ninguna_columna():
+    """Si alguien volviera a envolver el título en un `<a href>`, `st.dataframe`
+    lo enseñaría crudo. Este test lo impide."""
     p = social.normalizar_posts(pd.DataFrame([{
-        "red": "Instagram", "post_id": "1",
-        "tipo": '<img src=x onerror="alert(1)">',
+        "red": "Instagram", "post_id": "1", "tipo": "Reel",
         "titulo": "hola", "url": "https://x.test",
         "visualizaciones": 10, "likes": 1}]))
     filas = sr.filas_publicaciones(p, "Instagram")
-    assert "<img" not in filas.iloc[0]["tipo"]
-    assert "&lt;img" in filas.iloc[0]["tipo"]
+    for col in ("titulo", "tipo", "url"):
+        assert "<a " not in str(filas.iloc[0][col])
 
 
-def test_la_url_no_http_no_se_convierte_en_enlace():
-    p = social.normalizar_posts(pd.DataFrame([{
-        "red": "Instagram", "post_id": "1", "tipo": "Reel",
-        "titulo": "hola", "url": "javascript:alert(1)",
-        "visualizaciones": 10, "likes": 1}]))
+def test_la_fecha_va_como_fecha_para_que_ordene_cronologicamente():
+    """Como cadena «dd/mm/aaaa», ordenar daría un orden absurdo (todos los
+    días 1 juntos, de meses distintos)."""
+    p = social.normalizar_posts(pd.DataFrame([
+        {"red": "Instagram", "post_id": "1", "tipo": "Reel", "titulo": "a",
+         "url": "https://x.test", "fecha": "2026-07-02", "visualizaciones": 1},
+        {"red": "Instagram", "post_id": "2", "tipo": "Reel", "titulo": "b",
+         "url": "https://x.test", "fecha": "2026-06-30", "visualizaciones": 1},
+    ]))
     filas = sr.filas_publicaciones(p, "Instagram")
-    assert "javascript:" not in filas.iloc[0]["titulo"]
+    assert pd.api.types.is_datetime64_any_dtype(filas["fecha"])
+
+
+def test_las_metricas_siguen_siendo_numeros():
+    """Ordenar exige números: como texto formateado, «1.000» iría antes que «9»."""
+    p = social.normalizar_posts(pd.DataFrame([{
+        "red": "Instagram", "post_id": "1", "tipo": "Reel", "titulo": "a",
+        "url": "https://x.test", "visualizaciones": 1000, "likes": 9}]))
+    filas = sr.filas_publicaciones(p, "Instagram")
+    assert pd.api.types.is_numeric_dtype(filas["visualizaciones"])
+
+
+def test_la_columna_de_enlace_solo_acepta_http():
+    """`LinkColumn` SÍ renderiza un enlace pulsable, así que es la única columna
+    que necesita protección: un `javascript:` llegado de un CSV importado sería
+    ejecutable. La da el `validate` de `tabla_ordenable`."""
+    import inspect
+
+    from src.ui import components
+
+    fuente = inspect.getsource(components.tabla_ordenable)
+    assert "LinkColumn" in fuente
+    assert 'validate=r"^https?://"' in fuente, (
+        "la columna de enlace debe validar el esquema, o un javascript: sería "
+        "pulsable"
+    )
 
 
 def test_el_aviso_de_criterio_dice_como_se_ordena_facebook():

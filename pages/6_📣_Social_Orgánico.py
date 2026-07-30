@@ -147,20 +147,21 @@ with tab_resumen:
         st.info("Sin métricas de cuenta en el periodo.")
     else:
         columnas = [
-            {"key": "red", "label": "Red", "align": "l", "bold": True},
-            {"key": "seguidores_total", "label": "Seguidores", "fmt": num_o_guion},
-            {"key": "seguidores_nuevos", "label": "Nuevos", "fmt": num_o_guion},
-            {"key": "visualizaciones", "label": "Visualiz.", "fmt": num_o_guion},
-            {"key": "impresiones", "label": "Impresiones", "fmt": num_o_guion},
-            {"key": "alcance", "label": "Alcance", "fmt": num_o_guion},
-            {"key": "likes", "label": "Likes", "fmt": num_o_guion},
-            {"key": "comentarios", "label": "Coment.", "fmt": num_o_guion},
-            {"key": "compartidos", "label": "Compart.", "fmt": num_o_guion},
-            {"key": "mensajes", "label": "Mensajes", "fmt": num_o_guion},
+            {"key": "red", "label": "Red"},
+            {"key": "seguidores_total", "label": "Seguidores", "tipo": "numero"},
+            {"key": "seguidores_nuevos", "label": "Nuevos", "tipo": "numero"},
+            {"key": "visualizaciones", "label": "Visualiz.", "tipo": "numero"},
+            {"key": "impresiones", "label": "Impresiones", "tipo": "numero"},
+            {"key": "alcance", "label": "Alcance", "tipo": "numero"},
+            {"key": "likes", "label": "Likes", "tipo": "numero"},
+            {"key": "comentarios", "label": "Coment.", "tipo": "numero"},
+            {"key": "compartidos", "label": "Compart.", "tipo": "numero"},
+            {"key": "mensajes", "label": "Mensajes", "tipo": "numero"},
         ]
-        ui.tabla(por_red, columnas, etiqueta_col="red")
+        ui.tabla_ordenable(por_red, columnas)
         st.caption(
-            "Un «—» significa que **esa red no publica ese dato por API**, no que "
+            "Pulsa un encabezado para ordenar. Una celda **vacía** significa que "
+            "**esa red no publica ese dato por API**, no que "
             f"valga cero. {_frase_soporte('Impresiones', 'impresiones')} "
             f"{_frase_soporte('Mensajes', 'mensajes')} Además, ninguna red atribuye "
             "los mensajes a una publicación concreta."
@@ -243,26 +244,33 @@ with tab_resumen:
         if top_n != "Todas":
             vista = vista.head(int(top_n))
 
+        # Sin `html.escape` y con la fecha como datetime: el destino es
+        # `st.dataframe`, que no interpreta HTML (así que escapar solo enseñaría
+        # las entidades) y ordena las fechas cronológicamente si son fechas de
+        # verdad, no cadenas dd/mm/aaaa.
         vista = vista.assign(
-            publicacion=[_enlace(t, u) for t, u in zip(vista["titulo"], vista["url"])],
-            fecha_txt=pd.to_datetime(vista["fecha"], errors="coerce").dt.strftime("%d/%m/%Y"),
-            red_txt=[html.escape(str(r)) for r in vista["red"]],
-            tipo_txt=[html.escape(str(t)) for t in vista["tipo"]],
-        )
+            fecha=pd.to_datetime(vista["fecha"], errors="coerce"))
 
-        ui.tabla(vista, [
-            {"key": "red_txt", "label": "Red", "align": "l"},
-            {"key": "fecha_txt", "label": "Fecha", "align": "l"},
-            {"key": "tipo_txt", "label": "Tipo", "align": "l"},
-            {"key": "publicacion", "label": "Publicación", "align": "l", "bold": True},
-            {"key": "visualizaciones", "label": "Visualiz.", "fmt": num_o_guion},
-            {"key": "impresiones", "label": "Impresiones", "fmt": num_o_guion},
-            {"key": "likes", "label": "Likes", "fmt": num_o_guion},
-            {"key": "comentarios", "label": "Coment.", "fmt": num_o_guion},
-            {"key": "compartidos", "label": "Compart.", "fmt": num_o_guion},
-            {"key": "guardados", "label": "Guardados", "fmt": num_o_guion},
-            {"key": "engagement", "label": "Engagement",
-             "fmt": lambda v: pct_o_guion(v, 2)},
+        ui.tabla_ordenable(vista, [
+            {"key": "red", "label": "Red", "ancho": "small"},
+            {"key": "fecha", "label": "Fecha", "tipo": "fecha", "ancho": "small"},
+            {"key": "tipo", "label": "Formato", "ancho": "small"},
+            {"key": "titulo", "label": "Publicación", "ancho": "large"},
+            {"key": "url", "label": "Ver", "tipo": "enlace",
+             "texto_enlace": "Abrir", "ancho": "small"},
+            {"key": "visualizaciones", "label": "Visualiz.", "tipo": "numero"},
+            {"key": "visualizaciones_totales", "label": "Visualiz. totales",
+             "tipo": "numero",
+             "ayuda": "Contador público acumulado desde que se publicó. Solo "
+                      "YouTube lo da aparte; en el resto, las métricas por "
+                      "publicación ya son acumuladas."},
+            {"key": "impresiones", "label": "Impresiones", "tipo": "numero"},
+            {"key": "likes", "label": "Likes", "tipo": "numero"},
+            {"key": "comentarios", "label": "Coment.", "tipo": "numero"},
+            {"key": "compartidos", "label": "Compart.", "tipo": "numero"},
+            {"key": "clics", "label": "Clics", "tipo": "numero"},
+            {"key": "guardados", "label": "Guardados", "tipo": "numero"},
+            {"key": "engagement", "label": "Engagement", "tipo": "porcentaje"},
         ])
 
         if top_n != "Todas" and total_filtradas > len(vista):

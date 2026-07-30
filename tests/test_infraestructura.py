@@ -7,17 +7,15 @@ def test_se_puede_importar_config():
 
 
 def test_los_modulos_de_datos_no_importan_streamlit():
-    """`social_analisis` y `social_demografia` deben ser probables sin Streamlit.
-
-    Se comprueba sobre `social.py`, que ya cumple la regla, para que el test
-    exista desde el principio y las tareas siguientes lo hereden.
-    """
+    """`social`, `social_analisis` y `social_demografia` deben ser probables sin Streamlit."""
     import subprocess
     import sys
 
-    codigo = (
-        "import sys; sys.modules['streamlit'] = None;"
-        "from src.data import social; print('ok')"
-    )
-    r = subprocess.run([sys.executable, "-c", codigo], capture_output=True, text=True)
-    assert r.returncode == 0, r.stderr
+    modulos = ["social", "social_analisis", "social_demografia"]
+    for modulo in modulos:
+        codigo = (
+            "import sys; sys.modules['streamlit'] = None;"
+            f"from src.data import {modulo}; print('ok')"
+        )
+        r = subprocess.run([sys.executable, "-c", codigo], capture_output=True, text=True)
+        assert r.returncode == 0, f"Error en {modulo}: {r.stderr}"

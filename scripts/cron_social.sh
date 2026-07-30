@@ -1,8 +1,14 @@
 #!/bin/bash
 #
-# Job diario de social orgánico, pensado para cron.
+# Captura del histórico de social orgánico, para ejecutar A MANO.
 #
-#   crontab -e   ->   0 4 * * * /Users/misael/Documents/Reversal/Dashboard/scripts/cron_social.sh
+#   ./scripts/cron_social.sh              captura, commitea y sube
+#   PUSH=0 ./scripts/cron_social.sh       captura y commitea, sin subir
+#
+# ⚠️ La captura DIARIA no la hace este script: la hace GitHub Actions
+# (`.github/workflows/historico-social.yml`), que corre en la nube y no depende
+# de que este Mac esté encendido. Esto queda para rellenos puntuales y para
+# probar en local.
 #
 # Hace tres cosas, en este orden:
 #   1. Captura las métricas del día y la demografía (snapshot_social.py).

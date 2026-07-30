@@ -173,25 +173,26 @@ python scripts/snapshot_social.py             # últimos 30 días
 python scripts/snapshot_social.py --dias 730  # relleno inicial hacia atrás
 ```
 
-**El cron ya está instalado** (30-jul-2026), y usa el envoltorio
-`scripts/cron_social.sh`, que además de capturar **commitea y sube** el
-histórico — sin ese último paso producción se queda congelada mientras el Mac
-sigue acumulando:
-
-```
-0 4 * * * /Users/misael/Documents/Reversal/Dashboard/scripts/cron_social.sh
-```
+**Lo ejecuta GitHub Actions, no ninguna máquina del equipo.**
+`.github/workflows/historico-social.yml` corre cada día a las 04:10 UTC, captura
+y commitea el resultado. Si todos los portátiles están apagados, el histórico se
+sigue acumulando igual.
 
 | | |
 |---|---|
-| Ver qué hizo anoche | `tail -40 data/cron_social.log` |
-| Ejecutarlo a mano | `./scripts/cron_social.sh` |
-| Sin subir a producción | `PUSH=0 ./scripts/cron_social.sh` |
-| Desactivarlo | `crontab -e` y comentar la línea |
+| Ver las ejecuciones | pestaña **Actions** del repo |
+| Lanzarlo a mano | Actions → *Histórico de social orgánico* → **Run workflow** |
+| Ejecutarlo en local | `./scripts/cron_social.sh` (o con `PUSH=0` para no subir) |
 
-Solo toca `data/historico_social/`: nunca commitea código ni caché, así que
-convive con trabajo sin guardar. Si la captura falla no commitea nada; si el
-push falla, deja el commit en local y lo dice en el log.
+Necesita estos secretos en **Settings → Secrets and variables → Actions**:
+`META_SOCIAL_TOKEN`, `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`,
+`YOUTUBE_REFRESH_TOKEN` y, cuando LinkedIn apruebe, sus tres equivalentes.
+
+**Por qué hace falta, si el dashboard ya lee las APIs en vivo:** porque hay
+datos que solo existen durante una ventana corta. Instagram devuelve **30 días**
+de `follower_count`; preguntarle por marzo no devuelve nada, se pregunte desde
+donde se pregunte. La única forma de tener histórico es haber preguntado dentro
+de esa ventana y haber guardado la respuesta.
 
 Salta las redes sin credencial sin tocar su histórico, así que se puede arrancar
 con una sola red configurada. ⚠️ Streamlit Cloud no ejecuta cron: el histórico

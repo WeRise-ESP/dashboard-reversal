@@ -506,14 +506,16 @@ SOPORTE_METRICA_POST: dict[str, set[str]] = {
     "guardados": {"Instagram"},
 }
 
-# Pares (métrica, red) que NO están confirmados contra la cuenta real y que hasta
-# entonces se tratan como NO soportados (=> nulo). En YouTube Analytics API v2 no
-# está confirmado que `impressions` esté disponible para reportes de canal (en
-# Studio sí se ve). Cuando haya acceso al canal se comprueba: si está, se mueve
-# "YouTube" a SOPORTE_METRICA_SOCIAL["impresiones"] y se quita de aquí.
-SOPORTE_POR_VERIFICAR: set[tuple[str, str]] = {
-    ("impresiones", "YouTube"),
-}
+# Pares (métrica, red) sin confirmar contra la cuenta real, que hasta entonces se
+# tratan como NO soportados (=> nulo). Es la red de seguridad para no publicar un
+# número que nadie ha visto funcionar.
+#
+# Vacío desde el 30-jul-2026: el único pendiente era ("impresiones", "YouTube") y
+# ya está comprobado contra el canal real (UCAsFeXWR-s8Wkj0lmGhtx1A). La YouTube
+# Analytics API v2 responde HTTP 400 al pedir `impressions` en un reporte de
+# canal: en Studio se ve, por la API no se puede sacar. YouTube se queda fuera de
+# SOPORTE_METRICA_SOCIAL["impresiones"] por derecho propio, no por precaución.
+SOPORTE_POR_VERIFICAR: set[tuple[str, str]] = set()
 
 # Métrica que se usa como KPI principal comparable entre las 4 redes. NO se usa
 # «impresiones» porque Instagram ya no la publica (ver nota de arriba).
@@ -526,7 +528,7 @@ METRICAS_INTERACCION = ("likes", "comentarios", "compartidos")
 # Cuentas de social orgánico. Los IDs NO son secretos (son públicos en la propia
 # ficha de cada perfil), así que viven aquí y no en secrets.toml: lo único que
 # hace falta poner en secrets es el token de cada red.
-YOUTUBE_CHANNEL_ID = ""        # TODO "UC..." — youtube.com/account_advanced
+YOUTUBE_CHANNEL_ID = "UCAsFeXWR-s8Wkj0lmGhtx1A"  # Canal "Reversal Institute"
 SOCIAL_FACEBOOK_PAGE_ID = "1229909610199926"    # Página "Reversal Institute"
 SOCIAL_INSTAGRAM_USER_ID = "17841409682113567"  # @reversal_institute
 LINKEDIN_ORGANIZATION_ID = "123114024"          # Página "Reversal Institute"

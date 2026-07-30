@@ -2145,13 +2145,35 @@ from src.data import social_demografia
 
 - [ ] **Step 2: Envolver el contenido actual en la pestaña «Resumen»**
 
-En `pages/6_📣_Social_Orgánico.py`, tras el aviso de mezcla, crear las pestañas:
+En `pages/6_📣_Social_Orgánico.py`, tras el bloque del aviso de mezcla (la
+línea que cierra el `st.warning(...)`), insertar:
 
 ```python
 tab_resumen, *tabs_red = st.tabs(["Resumen"] + list(config.REDES_SOCIAL))
 ```
 
-Indentar todo el contenido actual de la página bajo `with tab_resumen:`.
+Después hay que indentar bajo `with tab_resumen:` TODO lo que va desde
+`ui.cabecera("Social orgánico", ...)` hasta el final del fichero actual.
+
+Son ~250 líneas, así que **no lo hagas a mano**: usa un script que reindente
+el rango exacto, y comprueba el resultado con `python -m py_compile` antes de
+seguir.
+
+```python
+# Reindentación mecánica. Ajusta INICIO al número de línea de `ui.cabecera(`.
+import pathlib
+p = pathlib.Path("pages/6_📣_Social_Orgánico.py")
+lineas = p.read_text().splitlines(keepends=True)
+INICIO = next(i for i, l in enumerate(lineas) if l.startswith("ui.cabecera("))
+cuerpo = ["    " + l if l.strip() else l for l in lineas[INICIO:]]
+p.write_text("".join(lineas[:INICIO] + ["with tab_resumen:\n"] + cuerpo))
+```
+
+⚠️ Las funciones auxiliares definidas en el cuerpo de la página (`_enlace`,
+etc.) quedarían dentro del `with`. Súbelas ANTES de la línea de `st.tabs`
+para que sigan siendo de módulo, o el resto del fichero no las verá.
+
+Verifica con: `.venv/bin/python -m py_compile "pages/6_📣_Social_Orgánico.py"`
 
 - [ ] **Step 3: Añadir las pestañas de red**
 

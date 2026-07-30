@@ -1,19 +1,22 @@
 """
 Genera el REFRESH TOKEN de LinkedIn para la página de Reversal Institute.
 
-    python scripts/linkedin_refresh_token.py <CLIENT_ID>
+    python scripts/linkedin_refresh_token.py 77hl0lbpekgnae
 
 El Client Secret NO se pasa como argumento: el script lo pide por teclado sin
 mostrarlo. Un secreto en la línea de comandos acaba en el historial del shell,
 en la lista de procesos y en cualquier captura de pantalla de la terminal.
 Si necesitas automatizarlo, usa la variable de entorno LINKEDIN_CLIENT_SECRET.
 
-Requisitos previos, en la app **ReversalLinkd** (linkedin.com/developers/apps):
+Requisitos previos, en la app de LinkedIn (linkedin.com/developers/apps):
 
-  1. Pestaña *Settings* → página verificada.  ✅ hecho el 30-jul-2026
+  1. Pestaña *Settings* → página verificada contra Reversal Institute.
   2. Pestaña *Products* → **Community Management API** concedida.
-     ⚠️ Tiene que ser el ÚNICO producto de la app: no convive con Marketing
-     Developer Platform. Si añades otro, la app queda inservible.
+     ⚠️ Tiene que ser el ÚNICO producto: LinkedIn ni siquiera deja pedirla si
+     hay otro producto concedido o una solicitud pendiente. Si te equivocas,
+     no hay vuelta atrás: toca app nueva y volver a verificar la página.
+     Señal de que aún no está: en *Auth* → *OAuth 2.0 scopes* pone
+     «No permissions added».
   3. Pestaña *Auth* → *Authorized redirect URLs*. Por defecto el script usa
          http://localhost:8765/callback
      pero si ya tienes registrada otra, pásala tal cual con --redirect y no

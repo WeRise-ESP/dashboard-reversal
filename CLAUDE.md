@@ -84,7 +84,11 @@ Tema de marca: verde `#0E7C52` (`src/config.py` → `TEMA`).
   Platform. Ojo con los productos que la propia app trae de serie: cuentan.
   La app tiene que estar además verificada contra la Company Page, y el acceso
   requiere revisión manual de LinkedIn y organización registrada.
-  Verificado en jul-2026 sobre la app "ReversalLinkd" (77214n5ht2ek85).
+  Comprobado en jul-2026: la primera app se quedó bloqueada por esto y hubo que
+  rehacerla desde cero. La actual es la de client id `77hl0lbpekgnae`.
+  Señal rápida de que el producto NO está concedido: en *Auth* → *OAuth 2.0
+  scopes* pone «No permissions added». Sin producto no hay scopes, y sin scopes
+  el OAuth falla siempre.
 - **Los errores de OAuth de LinkedIn no dicen la causa.** `invalid_scope_error`
   y `unauthorized_scope_error` («The requested permission scope is not valid»)
   significan casi siempre lo mismo: el producto no está concedido, así que esos

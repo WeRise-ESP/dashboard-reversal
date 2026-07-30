@@ -13,9 +13,21 @@ Credenciales esperadas en .streamlit/secrets.toml:
     api_version  = "v21.0" # opcional
 
 ⚠️ Este token NO es el de [meta_ads]. El de Ads solo tiene ads_management /
-ads_read (comprobado: `/me/accounts` devuelve vacío con él). Aquí hacen falta
-pages_show_list, pages_read_engagement, read_insights, instagram_basic,
-instagram_manage_insights y —solo para mensajes— pages_messaging.
+ads_read (comprobado: `/me/accounts` devuelve vacío con él). Aquí hacen falta:
+
+    pages_show_list            listar las Páginas del System User
+    pages_read_engagement      canjear por token de Página — sin esto, NADA de
+                               Facebook funciona (Page Insights lo exige)
+    read_insights              métricas de la Página
+    pages_read_user_content    listar published_posts -> likes/comentarios/
+                               compartidos. Distinto de read_insights: se puede
+                               leer la métrica y no poder listar los posts.
+    instagram_basic            cuenta de IG, usuario, seguidores, media
+    instagram_manage_insights  métricas de IG (reach, follower_count, views)
+    pages_messaging            solo la métrica de mensajes (opcional)
+
+Y hay que asignar al System User la Página **y** la cuenta de Instagram por
+separado. Comprueba el conjunto con `scripts/verificar_social.py --red Meta`.
 
 ⚠️ INSTAGRAM NO TIENE IMPRESIONES. Meta retiró `impressions` el 21-abr-2025
 (Graph v22.0) y la sustituyó por `views`. La columna sale a nulo por config.

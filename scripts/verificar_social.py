@@ -40,10 +40,22 @@ from src.connectors.base import _leer_secreto  # noqa: E402
 
 OK, FALLO, AVISO, INFO = "✓", "✗", "!", "·"
 
-# Permisos que el token de [social_meta] necesita. `pages_messaging` es aparte:
-# sin él solo se pierde la métrica de mensajes, no el resto.
+# Permisos que el token de [social_meta] necesita, verificados contra la cuenta
+# real. Cada uno cubre algo distinto y no son intercambiables:
+#
+#   pages_show_list           listar las Páginas del System User
+#   pages_read_engagement     canjear por token de Página (sin esto no hay nada)
+#   read_insights             métricas de Page Insights
+#   pages_read_user_content   listar published_posts -> likes/comentarios/
+#                             compartidos de Facebook. Es OTRO permiso que el de
+#                             insights: se puede leer la métrica de la Página y
+#                             aun así no poder listar sus publicaciones.
+#   instagram_basic           cuenta de IG, usuario, seguidores, media
+#   instagram_manage_insights métricas de IG (reach, follower_count, views)
 _SCOPES_META = ("pages_show_list", "pages_read_engagement", "read_insights",
-                "instagram_basic", "instagram_manage_insights")
+                "pages_read_user_content", "instagram_basic",
+                "instagram_manage_insights")
+# Aparte: sin él solo se pierde la métrica de mensajes, no el resto.
 _SCOPE_MENSAJES = "pages_messaging"
 
 

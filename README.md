@@ -100,12 +100,40 @@ independiente en cuanto llega su credencial; que falte una no afecta a las demá
 | Red | Qué hace falta | Dónde |
 |---|---|---|
 | **YouTube** | Habilitar YouTube Data API v3 + YouTube Analytics API en el proyecto de Cloud de GA4, crear un OAuth client de tipo *Desktop* y generar el refresh token con la cuenta **propietaria del canal** (Analytics no admite service account). | [APIs](https://console.cloud.google.com/apis/library/youtubeanalytics.googleapis.com) · [Credenciales](https://console.cloud.google.com/apis/credentials) · [Channel ID](https://www.youtube.com/account_advanced) |
-| **Facebook + Instagram** | Token del System User con `pages_show_list`, `pages_read_engagement`, `read_insights`, `instagram_basic`, `instagram_manage_insights` (+ `pages_messaging` para mensajes) **y asignar la Página al System User**. El token de `[meta_ads]` NO sirve: solo tiene `ads_*`. | [System Users](https://business.facebook.com/settings/system-users) · [Depurador de tokens](https://developers.facebook.com/tools/debug/accesstoken/) |
+| **Facebook + Instagram** | ✅ **Conectado (30-jul-2026).** Token de System User «Dashboard-Reversal», sin caducidad. Ver la lista completa de permisos más abajo. | [System Users](https://business.facebook.com/settings/system-users) · [Depurador de tokens](https://developers.facebook.com/tools/debug/accesstoken/) |
 | **LinkedIn** | ⏳ **Solicitud enviada el 30-jul-2026, en revisión.** Nada que hacer salvo esperar y responder al correo de verificación. Cuando llegue la aprobación: `python scripts/linkedin_refresh_token.py 77hl0lbpekgnae`. | [App](https://www.linkedin.com/developers/apps) · [Requisitos](https://learn.microsoft.com/en-us/linkedin/marketing/community-management-app-review) |
 
 Secciones de `secrets.toml`: `[youtube]`, `[social_meta]` y `[linkedin]` (ver el
 encabezado de cada conector en `src/connectors/`). Comprueba cualquiera de ellas
 con `python scripts/verificar_social.py`.
+
+### Permisos del token de Meta (`[social_meta]`)
+
+Verificados contra la cuenta real. **No son intercambiables**: cada uno abre una
+puerta distinta, y sobra con que falte uno para perder toda una parte.
+
+| Permiso | Sin él se pierde |
+|---|---|
+| `pages_show_list` | listar las Páginas del System User |
+| `pages_read_engagement` | **todo Facebook**: es lo que permite canjear el token de System User por uno de Página, y Page Insights exige el de Página |
+| `read_insights` | las métricas de la Página |
+| `pages_read_user_content` | listar `published_posts` → likes, comentarios y compartidos de Facebook |
+| `instagram_basic` | la cuenta de Instagram entera |
+| `instagram_manage_insights` | las métricas de Instagram (`reach`, `follower_count`, `views`) |
+| `pages_messaging` | solo la métrica de mensajes (opcional) |
+
+⚠️ `read_insights` y `pages_read_user_content` **son cosas distintas**: se puede
+leer una métrica de la Página y aun así no poder listar sus publicaciones. Fue
+justo lo que pasó en la primera captura real.
+
+⚠️ El token de `[meta_ads]` NO sirve aquí: solo tiene `ads_*`. Comprobado —
+con él `/me/accounts` devuelve vacío.
+
+Hay que asignar al System User **la Página y la cuenta de Instagram por
+separado**, en dos pestañas distintas del mismo diálogo. Y generar el token con
+caducidad **Nunca**: con 60 días el cron deja de funcionar sin avisar.
+
+Comprueba el conjunto con `python scripts/verificar_social.py --red Meta`.
 
 ### Estado de LinkedIn (30-jul-2026)
 

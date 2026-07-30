@@ -457,6 +457,7 @@ def _api_fb_posts(creds: dict, desde, hasta) -> pd.DataFrame:
             miniatura=p.get("full_picture", ""),
             impresiones=insights.get("impresiones"),
             visualizaciones=insights.get("visualizaciones"),
+            clics=insights.get("clics"),
             likes=(p.get("reactions", {}).get("summary", {}) or {}).get("total_count"),
             comentarios=(p.get("comments", {}).get("summary", {}) or {}).get("total_count"),
             compartidos=(p.get("shares", {}) or {}).get("count", 0),
@@ -464,27 +465,56 @@ def _api_fb_posts(creds: dict, desde, hasta) -> pd.DataFrame:
     return pd.DataFrame(filas)
 
 
+# Métrica de la API -> clave del esquema. VERIFICADAS contra la Página real el
+# 30-jul-2026 sondeando una a una. Toda la familia `post_impressions*` está
+# retirada, igual que a nivel de Página, así que ni se pide: incluirla haría
+# que Meta rechazara la llamada entera y se perderían también las que sí
+# funcionan.
+_METRICAS_POST_FB = {
+    "post_video_views": "visualizaciones",     # solo vídeo; en estáticas, nulo
+    "blue_reels_play_count": "visualizaciones",  # reels
+    "post_clicks": "clics",
+}
+
+# `post_reactions_by_type_total` existe y responde, pero devuelve un DICCIONARIO
+# (me gusta / me encanta / me sorprende…), no un número. El esquema de
+# publicaciones es numérico y `social.normalizar_posts` descarta lo que no está
+# en él, así que incorporarlo exige tocar el esquema. Con 0 reacciones en toda
+# la Página hoy, no compensa: queda anotado como fuera de alcance en el spec.
+
+
 def _insights_post_fb(version: str, post_id: str, token: str) -> dict:
-    """Impresiones y visualizaciones de UNA publicación. {} si no se pueden leer."""
-    for metricas in (("post_impressions_organic", "post_video_views"),
-                     ("post_impressions", "post_video_views"),
-                     ("post_impressions",)):
+    """Métricas de UNA publicación de Facebook. {} si no se puede leer ninguna.
+
+    Se piden de UNA EN UNA a propósito. Meta rechaza la petición completa si un
+    solo nombre ya no existe, y esta familia de métricas la está podando a buen
+    ritmo: pidiéndolas por separado, lo que se retire mañana se pierde solo a sí
+    mismo. Lo que no responde no aparece en el dict, y acaba como NULO —nunca
+    como cero— en el DataFrame.
+    """
+    out = {}
+    for metrica in _METRICAS_POST_FB:
         try:
             datos = _get(version, f"{post_id}/insights", token,
-                         {"metric": ",".join(metricas)})
+                         {"metric": metrica})
         except Exception:  # noqa: BLE001
             continue
-        out = {}
         for bloque in datos.get("data", []):
+            # La clave sale del NOMBRE del bloque devuelto, no de la métrica
+            # pedida en esta vuelta: así no importa si la API agrupa varias
+            # métricas en una respuesta.
+            clave = _METRICAS_POST_FB.get(bloque.get("name"))
+            if clave is None:
+                continue
             valores = bloque.get("values") or [{}]
             valor = valores[0].get("value")
-            if bloque.get("name", "").startswith("post_impressions"):
-                out["impresiones"] = valor
-            elif bloque.get("name") == "post_video_views":
-                out["visualizaciones"] = valor
-        if out:
-            return out
-    return {}
+            # `visualizaciones` la pueden llenar dos métricas (vídeo y reels):
+            # gana la primera que traiga un valor real.
+            if valor in (None, {}, 0) and clave in out:
+                continue
+            if valor is not None:
+                out[clave] = valor
+    return out
 
 
 def _sumar_engagement_de_posts(diario: pd.DataFrame, posts: pd.DataFrame,

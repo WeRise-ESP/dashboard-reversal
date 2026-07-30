@@ -66,7 +66,7 @@ from src.connectors.base import (  # noqa: E402
     leer_historico,
 )
 from src.connectors.social_base import fusionar  # noqa: E402
-from src.data import social  # noqa: E402
+from src.data import social, social_demografia  # noqa: E402
 
 CLAVES = ("fecha", "red")
 
@@ -101,6 +101,23 @@ FUENTES = (
            linkedin._api_diario, "12 meses"),
 )
 
+CLAVES_DEMOGRAFIA = ("fecha", "red", "dimension", "categoria")
+
+# Demografía de audiencia. Facebook NO está: Meta retiró la demografía de
+# Páginas y no hay sustituto. Cada entrada apunta, igual que arriba, a la
+# función de API DIRECTA — nunca a la cascada, que caería a datos de ejemplo.
+FUENTES_DEMOGRAFIA = (
+    Fuente("Instagram", "social_meta", "social_instagram_demografia",
+           lambda c, d, h: meta_organico._api_ig_demografia(c, h),
+           "foto actual, sin histórico"),
+    Fuente("YouTube", "youtube", "social_youtube_demografia",
+           lambda c, d, h: youtube._api_demografia(c, d, h),
+           "% de visualizaciones del periodo"),
+    Fuente("LinkedIn", "linkedin", "social_linkedin_demografia",
+           lambda c, d, h: linkedin._api_demografia(c),
+           "foto actual, sin histórico"),
+)
+
 # Todas las métricas de social son recuentos. Se guardan como enteros nullable
 # para que el CSV lleve "128" y no "128.0", y el nulo siga siendo celda vacía.
 _COLUMNAS_ENTERAS = tuple(config.METRICAS_SOCIAL) + ("seguidores_total",)
@@ -133,6 +150,41 @@ def capturar(fuente: Fuente, desde: date, hasta: date) -> tuple[pd.DataFrame | N
         return None, "la API no devolvió filas para el periodo"
 
     return social.normalizar_diario(bruto), "ok"
+
+
+def capturar_demografia(fuente: Fuente, desde: date,
+                        hasta: date) -> tuple[pd.DataFrame | None, str]:
+    """Pide la demografía de una red, ya normalizada.
+
+    Mismo contrato que `capturar`: con df a None, `motivo` explica por qué se
+    salta esa red. Nunca se inventa un sustituto.
+    """
+    creds = _leer_secreto(fuente.seccion)
+    if not creds:
+        return None, f"sin credenciales (falta [{fuente.seccion}] en secrets.toml)"
+    try:
+        bruto = fuente.fn_api(creds, desde, hasta)
+    except Exception as e:  # noqa: BLE001
+        return None, f"la API falló: {e}"
+    if bruto is None or bruto.empty:
+        return None, "la API no devolvió demografía"
+    return social_demografia.normalizar(bruto), "ok"
+
+
+def acumular_demografia(clave: str, nuevo: pd.DataFrame,
+                        dry_run: bool) -> tuple[pd.DataFrame, int]:
+    """Funde la foto de hoy sobre el histórico de demografía guardado."""
+    previo_bruto = leer_historico(clave)
+    previo = (social_demografia.normalizar(previo_bruto)
+              if previo_bruto is not None and not previo_bruto.empty else None)
+
+    fusion = fusionar(previo, nuevo, CLAVES_DEMOGRAFIA)
+    fusion = fusion.sort_values(list(CLAVES_DEMOGRAFIA)).reset_index(drop=True)
+    nuevas = len(fusion) - (0 if previo is None else len(previo))
+
+    if not dry_run:
+        escribir_historico(fusion, clave)
+    return fusion, max(nuevas, 0)
 
 
 def acumular(clave: str, nuevo: pd.DataFrame,
@@ -204,6 +256,17 @@ def main() -> int:
         print(f"  ✓  {f.red:<10} +{nuevas} días nuevos, {actualizadas} actualizados "
               f"→ {len(fusion)} en total ({cobertura})")
         capturadas += 1
+
+    print("\nDemografía de audiencia:")
+    for f in [x for x in FUENTES_DEMOGRAFIA if not args.red or x.red in args.red]:
+        df, motivo = capturar_demografia(f, desde, hasta)
+        if df is None:
+            print(f"  ⏭  {f.red:<10} saltada — {motivo}")
+            continue
+        fusion, nuevas = acumular_demografia(f.clave, df, args.dry_run)
+        dims = ", ".join(sorted(set(df["dimension"])))
+        print(f"  ✓  {f.red:<10} +{nuevas} filas → {len(fusion)} en total ({dims})")
+    print("  ·  Facebook   sin demografía: Meta la retiró de las Páginas")
 
     print(f"\n{capturadas} red(es) capturadas, {saltadas} saltadas.")
     if saltadas:

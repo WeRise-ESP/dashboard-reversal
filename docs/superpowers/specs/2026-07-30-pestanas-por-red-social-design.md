@@ -55,10 +55,37 @@ No son suposiciones: están sondeadas con credenciales en producción.
 |---|---|---|
 | Instagram | 10 | Reel (10) |
 | YouTube | 4 | Short (4) |
-| Facebook | 2 | Publicación (2) |
+| Facebook | 2 → **5 y subiendo** | Publicación |
 
-Es poco. Cualquier ranking, media por formato o «top 3» tiene que ser honesto
-sobre la muestra en la que se apoya.
+Hoy es poco, pero **Facebook está en plena subida del histórico atrasado** y va a
+seguir creciendo. Por eso el diseño no se ajusta al volumen actual: los umbrales
+son dinámicos y los bloques declaran su tamaño de muestra, de forma que las
+mismas pestañas ganen densidad solas conforme entren publicaciones, sin tocar
+código.
+
+### Métricas por publicación, por red
+
+| | Instagram | YouTube | Facebook | LinkedIn |
+|---|---|---|---|---|
+| Visualizaciones | ✅ | ✅ | ⚠️ solo vídeo/reels | ✅ |
+| Impresiones | ❌ | ❌ | ❌ retiradas | ✅ |
+| Likes · comentarios · compartidos | ✅ | ✅ | ✅ | ✅ |
+| Guardados | ✅ | ❌ | ❌ | ❌ |
+| **Clics** | ❌ | ❌ | ✅ `post_clicks` | ✅ |
+| **Reacciones por tipo** | ❌ | ❌ | ✅ `post_reactions_by_type_total` | ❌ |
+
+Dos métricas nuevas que hay que añadir al esquema de publicaciones, ambas
+verificadas contra la Página real:
+
+- **`clics`** — la publican Facebook y LinkedIn. Es la más cercana a intención
+  real que da el orgánico: mide quién quiso saber más, no quién pasó el dedo.
+- **`reacciones_por_tipo`** — solo Facebook. No es un número, es un desglose
+  (me gusta / me encanta / me sorprende / me entristece / me enfada). Va en su
+  pestaña como bloque propio, no en la tabla comparativa entre redes.
+
+Las publicaciones estáticas de Facebook se quedan sin visualizaciones —la API no
+las da— así que su casilla va a **nulo**, no a cero. Las de vídeo y reels sí las
+traen (`post_video_views`, `blue_reels_play_count`).
 
 ### Lo que NO se puede hacer
 
@@ -112,19 +139,38 @@ no se va a cumplir.
   hace ganar siempre a la publicación más vista, que es una observación circular:
   «lo que más se vio es lo que más se vio».
 
-  **Excepción de Facebook:** su API no da visualizaciones por publicación, así
-  que no hay denominador y la tasa es nula. Su ranking se ordena por
-  **interacciones absolutas**, y el bloque lo dice: «ordenado por interacciones;
-  Facebook no publica visualizaciones por publicación». Nunca se mezclan en un
-  mismo ranking publicaciones ordenadas por criterios distintos.
+  **Excepción de Facebook:** solo sus vídeos y reels traen visualizaciones, así
+  que en las publicaciones estáticas no hay denominador y la tasa es nula. Su
+  ranking se ordena por **interacciones absolutas**, y el bloque lo dice:
+  «ordenado por interacciones; Facebook solo publica visualizaciones en vídeo».
+  Nunca se mezclan en un mismo ranking publicaciones ordenadas por criterios
+  distintos.
+
+  El día que la mayoría de sus publicaciones sean vídeo, se puede reevaluar;
+  el criterio se elige en un solo sitio para que ese cambio sea de una línea.
+
+- **Listado completo**, ordenable, con **todas** las métricas que esa red
+  publica de cada publicación: fecha, formato, título enlazado al original,
+  miniatura, y sus métricas. Es la vista de trabajo: la que se mira para
+  encontrar una publicación concreta, no para sacar una conclusión.
+
+- **Bloques propios de cada red**, cuando su API da algo que las demás no:
+  guardados en Instagram, clics en Facebook y LinkedIn, desglose de reacciones
+  en Facebook. Van al final de la sección, después de lo común.
 - **Rendimiento por formato**: Reel vs Carrusel vs Imagen · Short vs Vídeo.
   Es el bloque que responde «qué publico la semana que viene».
-- **Listado completo** con todas las métricas de esa red.
-
 **Umbral de muestra:** el bloque indica siempre sobre cuántas publicaciones se
 calcula. Con menos de **6 publicaciones** en el periodo no se muestra el Bottom 3
 —con 2 publicaciones, «la peor» es la segunda— y se dice por qué. El Top se
 muestra siempre, recortado al número disponible.
+
+El umbral es una constante en `config`, no un número repartido por el código:
+con Facebook subiendo su histórico, el punto en el que estos bloques empiezan a
+tener sentido se alcanzará solo, y ajustarlo debe ser cambiar una línea.
+
+**Media por formato:** solo se muestra el formato que tenga al menos 3
+publicaciones. Una media de una sola publicación no es una media, y presentarla
+junto a otra de doce invita a compararlas como si pesaran igual.
 
 ### 5 · Audiencia
 

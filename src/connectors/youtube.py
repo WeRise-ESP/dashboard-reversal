@@ -280,15 +280,26 @@ def _api_demografia(creds: dict, desde, hasta) -> pd.DataFrame:
     try:
         r = analytics.reports().query(
             **base, metrics="viewerPercentage", dimensions="ageGroup,gender").execute()
+        # La API cruza edad×género en cada fila, así que ambas dimensiones se
+        # agregan en su propio diccionario antes de emitir filas: una por
+        # tramo de edad y una por género, nunca una por combinación. De lo
+        # contrario la clave (fecha, red, dimension, categoria) del esquema
+        # saldría duplicada —varias filas con dimension="genero" y la misma
+        # categoria "F"— y `fusionar`/`drop_duplicates` se quedaría con la
+        # última al azar en vez del total.
         por_edad: dict[str, float] = {}
+        por_genero: dict[str, float] = {}
         for tramo, genero, pct in (fila[:3] for fila in r.get("rows", [])):
             etiqueta = _tramo_edad_yt(tramo)
             por_edad[etiqueta] = por_edad.get(etiqueta, 0.0) + float(pct)
-            filas.append({"fecha": hasta, "red": RED, "dimension": "genero",
-                          "categoria": _GENERO_YT.get(genero, "U"), "valor": pct})
+            categoria_genero = _GENERO_YT.get(genero, "U")
+            por_genero[categoria_genero] = por_genero.get(categoria_genero, 0.0) + float(pct)
         for etiqueta, pct in por_edad.items():
             filas.append({"fecha": hasta, "red": RED, "dimension": "edad",
                           "categoria": etiqueta, "valor": round(pct, 2)})
+        for categoria_genero, pct in por_genero.items():
+            filas.append({"fecha": hasta, "red": RED, "dimension": "genero",
+                          "categoria": categoria_genero, "valor": round(pct, 2)})
     except Exception:  # noqa: BLE001
         pass
 

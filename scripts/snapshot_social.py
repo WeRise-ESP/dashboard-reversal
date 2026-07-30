@@ -31,6 +31,17 @@ Se aplica `social.normalizar_diario` a lo que devuelve la API, así que una
 métrica que la red no publica sale como celda VACÍA en el CSV, nunca como 0.
 La fusión respeta lo mismo: un nulo nuevo jamás pisa un valor ya guardado.
 
+## Segunda fase: demografía de audiencia
+
+Tras la fase diaria, el job pide también la demografía (edad, género, ciudad,
+país...) de cada red y la escribe en `data/historico_social/
+social_<red>_demografia.csv`, fusionando con las claves `(fecha, red,
+dimension, categoria)` — igual que la fase diaria, nunca borra una captura
+anterior, solo la corrige o la complementa (ver `CLAVES_DEMOGRAFIA`).
+
+Facebook NO tiene esta fase: Meta retiró la demografía de Páginas en 2025 y no
+hay sustituto. El job lo indica en la salida en vez de dejarlo como un olvido.
+
 ## Puesta en marcha (cron diario a las 04:00)
 
     0 4 * * * cd /ruta/a/Dashboard && .venv/bin/python scripts/snapshot_social.py
@@ -173,7 +184,14 @@ def capturar_demografia(fuente: Fuente, desde: date,
 
 def acumular_demografia(clave: str, nuevo: pd.DataFrame,
                         dry_run: bool) -> tuple[pd.DataFrame, int]:
-    """Funde la foto de hoy sobre el histórico de demografía guardado."""
+    """Funde la foto de hoy sobre el histórico de demografía guardado.
+
+    El segundo valor devuelto es la diferencia de filas SIN recortar a 0: si
+    el histórico encoge —por ejemplo porque una fuente estaba duplicando
+    filas y una fusión anterior corrigió el bug— eso tiene que verse en la
+    salida como un número negativo, nunca esconderse detrás de un "+0" que
+    sugeriría que no ha pasado nada.
+    """
     previo_bruto = leer_historico(clave)
     previo = (social_demografia.normalizar(previo_bruto)
               if previo_bruto is not None and not previo_bruto.empty else None)
@@ -184,7 +202,7 @@ def acumular_demografia(clave: str, nuevo: pd.DataFrame,
 
     if not dry_run:
         escribir_historico(fusion, clave)
-    return fusion, max(nuevas, 0)
+    return fusion, nuevas
 
 
 def acumular(clave: str, nuevo: pd.DataFrame,
@@ -265,8 +283,16 @@ def main() -> int:
             continue
         fusion, nuevas = acumular_demografia(f.clave, df, args.dry_run)
         dims = ", ".join(sorted(set(df["dimension"])))
-        print(f"  ✓  {f.red:<10} +{nuevas} filas → {len(fusion)} en total ({dims})")
-    print("  ·  Facebook   sin demografía: Meta la retiró de las Páginas")
+        if nuevas < 0:
+            # El histórico ha encogido: nunca ocultarlo como "+0", porque es
+            # justo la señal de que una fusión anterior escribió filas
+            # duplicadas o corruptas y esta las ha corregido de golpe.
+            print(f"  ⚠️  {f.red:<10} el histórico ENCOGIÓ en {-nuevas} filas "
+                  f"→ {len(fusion)} en total ({dims})")
+        else:
+            print(f"  ✓  {f.red:<10} +{nuevas} filas → {len(fusion)} en total ({dims})")
+    if not args.red or "Facebook" in args.red:
+        print("  ·  Facebook   sin demografía: Meta la retiró de las Páginas")
 
     print(f"\n{capturadas} red(es) capturadas, {saltadas} saltadas.")
     if saltadas:

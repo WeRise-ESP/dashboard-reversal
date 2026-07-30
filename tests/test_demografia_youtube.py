@@ -88,6 +88,32 @@ def test_pais_se_expresa_como_porcentaje_del_total_de_vistas(monkeypatch):
     assert round(pais["ES"] + pais["AR"], 1) == 100.0
 
 
+def test_el_genero_se_agrega_en_una_sola_fila_por_valor(monkeypatch):
+    """La API cruza edad×género en cada fila (varios tramos por género). Igual
+    que ya se hace con la edad, el género debe acumularse en un diccionario y
+    emitir UNA sola fila por valor de género con el total sumado — nunca una
+    fila por combinación edad×género, que dejaría claves duplicadas en el
+    esquema (fecha, red, dimension, categoria) y corrompería la fusión del
+    histórico."""
+    respuestas = {
+        "ageGroup,gender": {"rows": [
+            ["age18-24", "female", 10.0],
+            ["age25-34", "female", 15.0],
+            ["age18-24", "male", 20.0],
+            ["age25-34", "male", 25.0],
+        ]},
+        "country": {"rows": []},
+    }
+    monkeypatch.setattr(yt, "_servicios", lambda c: (_Analytics(respuestas), None))
+    monkeypatch.setattr(yt, "_canal", lambda c: "UC123")
+    d = sd.normalizar(yt._api_demografia({}, date(2026, 7, 1), date(2026, 7, 30)))
+    genero = d[d["dimension"] == "genero"]
+    assert len(genero) == 2
+    valores = genero.set_index("categoria")["valor"]
+    assert round(valores["F"], 2) == 25.0
+    assert round(valores["M"], 2) == 45.0
+
+
 def test_pais_no_aparece_si_no_hay_vistas_en_el_periodo(monkeypatch):
     """Sin vistas no hay proporción que calcular: la dimensión no debe
     aparecer con un 0 inventado (nulo != cero)."""

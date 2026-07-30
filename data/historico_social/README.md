@@ -16,6 +16,21 @@ Estos ficheros **sí van a git**: son métricas agregadas sin datos personales, 
 es la única vía por la que el histórico llega a la app desplegada (Streamlit
 Cloud no ejecuta el job).
 
+Y la demografía de audiencia, en formato largo:
+
+```
+social_youtube_demografia.csv    social_instagram_demografia.csv
+social_linkedin_demografia.csv
+```
+
+Columnas: `fecha` · `red` · `dimension` · `categoria` · `valor` · `unidad`.
+
+⚠️ **`unidad` no es decorativa.** Instagram cuenta personas que te siguen
+(`seguidores`); YouTube da el % de visualizaciones (`pct_visualizaciones`).
+Sumar o comparar filas de unidades distintas no significa nada.
+
+Facebook no aparece: Meta retiró la demografía de Páginas.
+
 ## En qué se diferencia de `import_social/`
 
 Los dos guardan histórico, pero entran de forma distinta:

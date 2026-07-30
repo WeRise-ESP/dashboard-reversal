@@ -524,8 +524,18 @@ SOPORTE_METRICA_SOCIAL: dict[str, set[str]] = {
 }
 
 # Ídem por publicación. «Guardados» solo lo da Instagram (`saved`).
+#
+# ⚠️ Facebook NO está en «impresiones»: aunque a nivel de Página la retirada ya
+# estaba documentada arriba, la familia `post_impressions*` a nivel de
+# PUBLICACIÓN también está retirada. Sondeado uno a uno contra la Página real
+# el 30-jul-2026: `post_impressions`, `post_impressions_organic`,
+# `post_impressions_unique` y `post_impressions_organic_unique` responden las
+# cuatro «(#100) The value must be a valid insights metric». Declarar aquí
+# a Facebook como soportado sin que la API la sirva es la misma mentira que la
+# regla de nulo≠cero existe para evitar, solo que al revés: prometer un dato
+# que nunca va a llegar. Ver `meta_organico._METRICAS_POST_FB` (no la pide).
 SOPORTE_METRICA_POST: dict[str, set[str]] = {
-    "impresiones": {"Facebook", "LinkedIn"},
+    "impresiones": {"LinkedIn"},
     "visualizaciones": {"YouTube", "Facebook", "Instagram", "LinkedIn"},
     "likes": {"YouTube", "Facebook", "Instagram", "LinkedIn"},
     "comentarios": {"YouTube", "Facebook", "Instagram", "LinkedIn"},

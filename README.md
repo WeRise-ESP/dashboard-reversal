@@ -18,7 +18,7 @@ y ROAS.
 | **📈 Google Analytics** | Tráfico de todo el sitio por canal: sesiones, usuarios, vistas, conversiones. |
 | **🎯 Leads (HubSpot)** | Asociación lead↔segmento, CPL/coste-matrícula, embudo y leads recientes. |
 | **🩺 Tracking & Atribución** | Semáforo de medición, diagnóstico de fugas de atribución y checklist de corrección. |
-| **📣 Social Orgánico** | YouTube, Facebook, Instagram y LinkedIn: visualizaciones, seguidores, interacciones y mensajes por red y **por publicación**. Solo alcance no pagado. |
+| **📣 Social Orgánico** | Resumen comparativo entre redes + **una pestaña por red** con KPIs contra el periodo anterior, evolución, rendimiento de publicaciones y demografía de audiencia. Solo alcance no pagado. |
 
 ## Puesta en marcha
 
@@ -182,6 +182,16 @@ Cron, **el mismo día que llegue la primera credencial**:
 Salta las redes sin credencial sin tocar su histórico, así que se puede arrancar
 con una sola red configurada. ⚠️ Streamlit Cloud no ejecuta cron: el histórico
 llega a producción porque los CSV se commitean y se hace push.
+
+### Tests
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest tests/ -v
+```
+
+Los módulos de datos (`social_analisis`, `social_demografia`) no importan
+Streamlit a propósito: se prueban con DataFrames sueltos, sin levantar la app.
 
 ## Despliegue en Streamlit Cloud
 

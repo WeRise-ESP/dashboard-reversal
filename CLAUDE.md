@@ -113,6 +113,18 @@ Tema de marca: verde `#0E7C52` (`src/config.py` → `TEMA`).
 - **ROAS** usa ingresos reales (`amount` de deals ganados), no matrículas × ticket.
 - Las campañas de Google/Meta se traen TODAS (activas y pausadas) con su Estado; las
   sin actividad en el periodo entran con métricas a 0.
+- **La demografía NO mide lo mismo en cada red.** Instagram cuenta PERSONAS que
+  te siguen; YouTube da el % de VISUALIZACIONES por tramo. Poblaciones y
+  unidades distintas: `social_demografia` las marca con `unidad` y la UI la
+  escribe dentro del bloque. Nunca comparten gráfico.
+- **Facebook no tiene demografía ni impresiones por publicación.** Meta retiró
+  `page_fans_*` y `post_impressions*`. Lo que sí da y nadie más: `post_clicks`
+  y `post_reactions_by_type_total`. Por eso su ranking se ordena por
+  interacciones y no por tasa de engagement (`social_analisis.criterio_ranking`).
+- **LinkedIn no publica edad ni género.** Da cargo, función, sector, tamaño de
+  empresa y país. Hay un test que lo fija.
+- **Los umbrales de muestra están en `config`** (`MIN_PUBLICACIONES_BOTTOM`,
+  `MIN_PUBLICACIONES_FORMATO`), no repartidos: el volumen está creciendo.
 
 ## Pendiente (contexto)
 - Servir bajo dominio propio `admin.reversal.institute/dashboard-m/` (reverse proxy +

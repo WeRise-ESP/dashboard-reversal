@@ -18,3 +18,13 @@ def test_umbrales_de_muestra_definidos_en_config():
     el punto en que estos bloques tienen sentido se moverá."""
     assert config.MIN_PUBLICACIONES_BOTTOM >= 4
     assert config.MIN_PUBLICACIONES_FORMATO >= 2
+
+
+def test_facebook_no_publica_impresiones_por_publicacion():
+    """La familia post_impressions* está retirada también a nivel de
+    publicación (no solo a nivel de Página). Sondeado uno a uno contra la
+    Página real el 30-jul-2026: post_impressions, post_impressions_organic,
+    post_impressions_unique y post_impressions_organic_unique responden las
+    cuatro "(#100) The value must be a valid insights metric"."""
+    assert not config.soporta_metrica("impresiones", "Facebook", "post")
+    assert config.soporta_metrica("impresiones", "LinkedIn", "post")

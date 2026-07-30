@@ -523,7 +523,7 @@ METRICAS_INTERACCION = ("likes", "comentarios", "compartidos")
 YOUTUBE_CHANNEL_ID = ""        # TODO "UC..." — youtube.com/account_advanced
 SOCIAL_FACEBOOK_PAGE_ID = "1229909610199926"    # Página "Reversal Institute"
 SOCIAL_INSTAGRAM_USER_ID = "17841409682113567"  # @reversal_institute
-LINKEDIN_ORGANIZATION_ID = ""  # TODO — /company/XXXXXXX/admin
+LINKEDIN_ORGANIZATION_ID = "123114024"          # Página "Reversal Institute"
 
 # El social orgánico se mueve despacio y sus APIs tienen cuotas ajustadas.
 CACHE_TTL_SOCIAL = 3600  # 1 h

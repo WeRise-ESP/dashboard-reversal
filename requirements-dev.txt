@@ -1,0 +1,4 @@
+# Dependencias solo de desarrollo. Producción usa requirements.txt.
+# Streamlit Cloud NO instala este fichero.
+-r requirements.txt
+pytest>=8.0

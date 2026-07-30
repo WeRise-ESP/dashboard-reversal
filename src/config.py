@@ -494,6 +494,7 @@ METRICAS_POST = {
     "likes": "Likes",
     "comentarios": "Comentarios",
     "compartidos": "Compartidos",
+    "clics": "Clics",
     "guardados": "Guardados",
 }
 
@@ -529,6 +530,11 @@ SOPORTE_METRICA_POST: dict[str, set[str]] = {
     "likes": {"YouTube", "Facebook", "Instagram", "LinkedIn"},
     "comentarios": {"YouTube", "Facebook", "Instagram", "LinkedIn"},
     "compartidos": {"YouTube", "Facebook", "Instagram", "LinkedIn"},
+    # Clics en la publicación. Los dan Facebook (`post_clicks`) y LinkedIn
+    # (`clickCount`); Instagram y YouTube no. Verificado contra las cuentas
+    # reales el 30-jul-2026. Es la métrica de orgánico más cercana a intención:
+    # mide quién quiso saber más, no quién pasó el dedo.
+    "clics": {"Facebook", "LinkedIn"},
     "guardados": {"Instagram"},
 }
 
@@ -561,6 +567,15 @@ LINKEDIN_ORGANIZATION_ID = "123114024"          # Página "Reversal Institute"
 
 # El social orgánico se mueve despacio y sus APIs tienen cuotas ajustadas.
 CACHE_TTL_SOCIAL = 3600  # 1 h
+
+# Umbrales de muestra de los bloques de análisis por red.
+#
+# Viven aquí y no repartidos por el código porque el volumen de publicaciones
+# está creciendo (Facebook subiendo su histórico atrasado): el punto a partir
+# del cual estos bloques dicen algo se va a mover, y moverlo debe ser cambiar
+# una línea.
+MIN_PUBLICACIONES_BOTTOM = 6   # por debajo, «la peor» es casi «la segunda»
+MIN_PUBLICACIONES_FORMATO = 3  # una media de 1 publicación no es una media
 
 
 def soporta_metrica(metrica: str, red: str, ambito: str = "diario") -> bool:

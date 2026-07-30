@@ -246,3 +246,141 @@ def hubspot_deals(desde, hasta) -> pd.DataFrame:
                                 if perdido else "Sin motivo indicado"),
             ))
     return pd.DataFrame(filas)
+
+
+# --------------------------------------------------------------------------- #
+# Social orgánico — YouTube, Facebook, Instagram, LinkedIn.
+#
+# NOTA: se generan TODAS las métricas para las 4 redes a propósito, incluidas las
+# que la red no publica en realidad (p.ej. impresiones de Instagram). Es
+# deliberado: `src/data/social.py` debe anularlas al normalizar, así que el
+# ejemplo sirve además de prueba de que la regla de los nulos se está aplicando.
+# Si en el dashboard vieras un número en una casilla que debería estar a «—», la
+# regla se ha roto.
+#
+# Los volúmenes reflejan el perfil de Reversal: LinkedIn es la red fuerte (público
+# profesional sanitario), Instagram media, YouTube y Facebook pequeñas.
+# --------------------------------------------------------------------------- #
+
+# base diaria de visualizaciones, seguidores, tasas de engagement por red
+_PERFIL_SOCIAL = {
+    "LinkedIn":  dict(views=2400, followers=4200, seg=14, eng=0.045, msg=0),
+    "Instagram": dict(views=1800, followers=3100, seg=11, eng=0.038, msg=0),
+    "YouTube":   dict(views=520,  followers=880,  seg=4,  eng=0.030, msg=0),
+    "Facebook":  dict(views=430,  followers=1650, seg=2,  eng=0.018, msg=3),
+}
+
+
+def social_diario(desde, hasta) -> pd.DataFrame:
+    """Métricas diarias de cuenta de ejemplo, una fila por (fecha, red)."""
+    fechas = _rango_fechas(desde, hasta)
+    filas = []
+    for red, pf in _PERFIL_SOCIAL.items():
+        r = _rng("social-" + red)
+        acumulado = pf["followers"]
+        for i, f in enumerate(fechas):
+            # Fin de semana rinde menos, sobre todo en LinkedIn (público laboral).
+            factor_fds = 0.55 if (red == "LinkedIn" and f.weekday() >= 5) else 1.0
+            views = max(0, int(r.normal(pf["views"], pf["views"] * 0.3) * factor_fds))
+            alcance = int(views * r.uniform(0.62, 0.82))       # < views por definición
+            impresiones = int(views * r.uniform(1.05, 1.35))   # > views por definición
+            inter = int(views * pf["eng"] * r.uniform(0.7, 1.3))
+            likes = int(inter * 0.78)
+            comentarios = int(inter * 0.14)
+            compartidos = max(0, inter - likes - comentarios)
+            nuevos = max(0, int(r.normal(pf["seg"], pf["seg"] * 0.5) * factor_fds))
+            acumulado += nuevos
+            filas.append(dict(
+                fecha=f, red=red,
+                impresiones=impresiones, visualizaciones=views, alcance=alcance,
+                seguidores_nuevos=nuevos, seguidores_total=acumulado,
+                likes=likes, comentarios=comentarios, compartidos=compartidos,
+                mensajes=max(0, int(r.normal(pf["msg"], 1.5))) if pf["msg"] else 0,
+            ))
+    return pd.DataFrame(filas)
+
+
+# Publicaciones verosímiles del contenido de Reversal (longevidad / healthspan).
+_TITULOS_SOCIAL = {
+    "YouTube": [
+        ("¿Qué es realmente el healthspan?", "Vídeo"),
+        ("3 marcadores de longevidad que puedes medir hoy", "Vídeo"),
+        ("Entrevista: longevidad en la práctica clínica", "Vídeo"),
+        ("Mitos sobre suplementación antiedad", "Short"),
+        ("Cómo interpretar la edad biológica", "Short"),
+        ("Ejercicio de fuerza después de los 50", "Vídeo"),
+        ("¿Sirven los test de edad epigenética?", "Short"),
+        ("Longevidad: qué dice la evidencia en 2026", "Vídeo"),
+        ("Errores al medir composición corporal", "Short"),
+    ],
+    "Facebook": [
+        ("Abrimos plazas de la nueva convocatoria", "Publicación"),
+        ("Caso real: 12 semanas de intervención", "Publicación"),
+        ("Webinar gratuito: metabolismo y edad", "Enlace"),
+        ("El equipo docente de la certificación", "Vídeo"),
+        ("Testimonio de una alumna fisioterapeuta", "Vídeo"),
+        ("Preguntas frecuentes sobre la matrícula", "Publicación"),
+        ("Nueva sesión práctica en Barcelona", "Publicación"),
+        ("Descarga el programa completo", "Enlace"),
+        ("Qué aprenderás en el módulo 3", "Publicación"),
+    ],
+    "Instagram": [
+        ("5 señales de inflamación crónica", "Carrusel"),
+        ("Rutina de fuerza para pacientes +50", "Reel"),
+        ("Lo que tu analítica no te está diciendo", "Carrusel"),
+        ("Un día en la certificación", "Reel"),
+        ("Sueño y longevidad: la evidencia", "Imagen"),
+        ("Responde el Dr.: ¿sirven los suplementos?", "Reel"),
+        ("Antes y después: 16 semanas", "Carrusel"),
+        ("3 hábitos que envejecen tu piel", "Reel"),
+        ("Tu consulta también puede hacer esto", "Imagen"),
+        ("Desayuno para estabilizar la glucosa", "Reel"),
+    ],
+    "LinkedIn": [
+        ("La longevidad como nueva especialidad clínica", "Artículo"),
+        ("Por qué tu consulta necesita healthspan", "Publicación"),
+        ("Resultados del primer grupo certificado", "Publicación"),
+        ("Oportunidad de negocio en medicina preventiva", "Artículo"),
+        ("Nuestro claustro, en 90 segundos", "Vídeo"),
+        ("Qué piden hoy los pacientes de 45-60", "Publicación"),
+        ("Cómo integrar healthspan en tu clínica", "Artículo"),
+        ("El mercado de la longevidad en España", "Publicación"),
+        ("Entrevista con nuestra directora médica", "Vídeo"),
+        ("De fisioterapeuta a especialista en longevidad", "Publicación"),
+    ],
+}
+
+
+def social_posts(desde, hasta) -> pd.DataFrame:
+    """Publicaciones de ejemplo con sus métricas, una fila por post."""
+    fechas = _rango_fechas(desde, hasta)
+    if not fechas:
+        return pd.DataFrame()
+
+    filas = []
+    for red, pf in _PERFIL_SOCIAL.items():
+        r = _rng("social-posts-" + red)
+        catalogo = _TITULOS_SOCIAL[red]
+        # ~2 publicaciones por semana y red, mínimo 1 si el periodo es corto.
+        n_posts = max(1, int(len(fechas) / 7 * 2))
+        for i in range(n_posts):
+            titulo, tipo = catalogo[i % len(catalogo)]
+            f = fechas[int(r.integers(0, len(fechas)))]
+            # Distribución de alcance con cola larga: unos pocos posts se salen.
+            multiplicador = float(r.pareto(1.6) + 0.4)
+            views = max(12, int(pf["views"] * 0.45 * multiplicador))
+            inter = int(views * pf["eng"] * r.uniform(0.6, 1.6))
+            likes = int(inter * 0.78)
+            comentarios = int(inter * 0.14)
+            compartidos = max(0, inter - likes - comentarios)
+            slug = f"{red[:2].lower()}{i:03d}"
+            filas.append(dict(
+                red=red, post_id=slug, fecha=f, tipo=tipo, titulo=titulo,
+                url=f"https://example.invalid/{red.lower()}/{slug}",
+                miniatura="",
+                impresiones=int(views * r.uniform(1.05, 1.35)),
+                visualizaciones=views,
+                likes=likes, comentarios=comentarios, compartidos=compartidos,
+                guardados=int(inter * r.uniform(0.05, 0.25)),
+            ))
+    return pd.DataFrame(filas)

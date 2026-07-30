@@ -70,6 +70,38 @@ def num(x: float, dec: int = 0) -> str:
 
 
 def badge_origen(origen: str) -> str:
-    etiqueta = {"api": "En vivo (API)", "cache": "Caché", "sample": "Ejemplo"}.get(origen, origen)
-    clase = {"api": "badge-ok", "cache": "badge-warn", "sample": "badge-off"}.get(origen, "badge-off")
+    etiqueta = {"api": "En vivo (API)", "cache": "Caché", "csv": "CSV importado",
+                "historico": "Histórico propio", "sample": "Ejemplo"}.get(origen, origen)
+    clase = {"api": "badge-ok", "cache": "badge-warn", "csv": "badge-warn",
+             "historico": "badge-warn", "sample": "badge-off"}.get(origen, "badge-off")
     return f'<span class="badge {clase}">{etiqueta}</span>'
+
+
+# --------------------------------------------------------------------------- #
+# Formateadores que distinguen NULO de CERO
+#
+# `num()` y `pct()` devuelven "0" ante un valor inválido o nulo. Para el social
+# orgánico eso es inaceptable: un nulo significa «esta red no publica el dato» y
+# pintarlo como 0 haría creer que la red rinde cero. Estas variantes muestran "—".
+#
+# Se añaden en vez de cambiar `num()`/`pct()` para no alterar lo que ya ven las
+# páginas de Ads/GA4/HubSpot, donde un dato ausente sí es realmente un cero.
+# --------------------------------------------------------------------------- #
+def _es_nulo(x) -> bool:
+    if x is None:
+        return True
+    try:
+        import pandas as pd
+        return bool(pd.isna(x))
+    except (TypeError, ValueError):
+        return False
+
+
+def num_o_guion(x, dec: int = 0) -> str:
+    """Número formateado, o "—" si el valor es nulo (dato no publicado)."""
+    return "—" if _es_nulo(x) else num(x, dec)
+
+
+def pct_o_guion(x, dec: int = 1) -> str:
+    """Porcentaje formateado, o "—" si el valor es nulo."""
+    return "—" if _es_nulo(x) else pct(x, dec)

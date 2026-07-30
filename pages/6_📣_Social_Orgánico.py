@@ -1,0 +1,283 @@
+"""Página: Social orgánico — YouTube, Facebook, Instagram y LinkedIn.
+
+Métricas de cuenta y de cada publicación, sin nada de pago.
+
+⚠️ Regla que gobierna toda esta página: cuando una red NO publica una métrica se
+muestra "—", nunca 0, y los agregados dicen qué redes quedan fuera. Ver la nota
+al pie de la página y `src/config.py` (SOPORTE_METRICA_SOCIAL).
+"""
+from __future__ import annotations
+
+import html
+
+import pandas as pd
+import streamlit as st
+
+from src import config
+from src.data import loader, social
+from src.ui import components as ui
+from src.ui.theme import aplicar_tema, num, num_o_guion, pct_o_guion
+
+st.set_page_config(page_title="Social orgánico · Reversal", page_icon="📣",
+                   layout="wide")
+aplicar_tema()
+
+desde, hasta, etq = ui.selector_periodo()
+datos = loader.cargar_social(desde, hasta)
+ui.aviso_origenes(
+    datos.origenes,
+    nota=f"Social se refresca cada {config.CACHE_TTL_SOCIAL // 60} min. "
+         "Cada red se resuelve por separado: API → caché → CSV → ejemplo.",
+)
+
+ui.cabecera("Social orgánico",
+            f"YouTube · Facebook · Instagram · LinkedIn — solo alcance no pagado · {etq}")
+
+diario = datos.diario
+posts = datos.posts
+
+if diario.empty and posts.empty:
+    st.warning("No hay datos de social para el periodo seleccionado.")
+    st.stop()
+
+
+def _enlace(titulo: str, url: str) -> str:
+    """Título escapado, como enlace si la URL es http(s).
+
+    `ui.tabla` inserta el valor en el HTML sin escapar, así que el escapado se
+    hace aquí: los textos vienen de las APIs y pueden traer <, & o comillas.
+    """
+    texto = html.escape(str(titulo or ""))
+    u = str(url or "")
+    if not u.startswith(("http://", "https://")):
+        return texto
+    return (f'<a href="{html.escape(u, quote=True)}" target="_blank" '
+            f'rel="noopener noreferrer" style="color:inherit;">{texto}</a>')
+
+
+def _frase_soporte(etiqueta: str, metrica: str, ambito: str = "diario") -> str:
+    """«Impresiones: sin dato en YouTube ni Instagram.» / «…: las 4 redes.»
+
+    Se usa «sin dato en» y no «no la publican» para que la frase valga con
+    métricas de cualquier género (impresiones, mensajes, guardados) sin fallar la
+    concordancia.
+    """
+    fuera = config.redes_sin_metrica(metrica, ambito)
+    if not fuera:
+        return f"{etiqueta}: las 4 redes."
+    listado = (fuera[0] if len(fuera) == 1
+               else ", ".join(fuera[:-1]) + f" ni {fuera[-1]}")
+    return f"{etiqueta}: sin dato en {listado}."
+
+
+# --------------------------------------------------------------------------- #
+# Bloque 1 — KPIs comparables entre las 4 redes
+# --------------------------------------------------------------------------- #
+st.subheader("Resumen del periodo")
+
+vis, _ = social.total_comparable(diario, "visualizaciones")
+seg, _ = social.total_comparable(diario, "seguidores_nuevos")
+inter = social.interacciones(diario).sum(min_count=1)
+inter = None if pd.isna(inter) else float(inter)
+tasa = (inter / vis) if (vis and inter is not None) else None
+
+c1, c2, c3, c4 = st.columns(4)
+ui.kpi(c1, "Visualizaciones", num_o_guion(vis),
+       "Métrica comparable entre redes")
+ui.kpi(c2, "Nuevos seguidores", num_o_guion(seg), "Suma de las 4 redes")
+ui.kpi(c3, "Interacciones", num_o_guion(inter), "Likes + comentarios + compartidos")
+ui.kpi(c4, "Tasa de engagement", pct_o_guion(tasa, 2),
+       "Interacciones / visualizaciones",
+       estado="ok" if (tasa or 0) >= 0.03 else "warn")
+
+st.caption(
+    "Se usa **visualizaciones** y no impresiones porque Instagram dejó de "
+    "publicar impresiones el 21-abr-2025: es la única base que dan las 4 redes."
+)
+
+st.divider()
+
+# --------------------------------------------------------------------------- #
+# Bloque 2 — Detalle por red
+# --------------------------------------------------------------------------- #
+st.subheader("Por red")
+
+por_red = social.totales_por_red(diario)
+if por_red.empty:
+    st.info("Sin métricas de cuenta en el periodo.")
+else:
+    columnas = [
+        {"key": "red", "label": "Red", "align": "l", "bold": True},
+        {"key": "seguidores_total", "label": "Seguidores", "fmt": num_o_guion},
+        {"key": "seguidores_nuevos", "label": "Nuevos", "fmt": num_o_guion},
+        {"key": "visualizaciones", "label": "Visualiz.", "fmt": num_o_guion},
+        {"key": "impresiones", "label": "Impresiones", "fmt": num_o_guion},
+        {"key": "alcance", "label": "Alcance", "fmt": num_o_guion},
+        {"key": "likes", "label": "Likes", "fmt": num_o_guion},
+        {"key": "comentarios", "label": "Coment.", "fmt": num_o_guion},
+        {"key": "compartidos", "label": "Compart.", "fmt": num_o_guion},
+        {"key": "mensajes", "label": "Mensajes", "fmt": num_o_guion},
+    ]
+    ui.tabla(por_red, columnas, etiqueta_col="red")
+    st.caption(
+        "Un «—» significa que **esa red no publica ese dato por API**, no que "
+        f"valga cero. {_frase_soporte('Impresiones', 'impresiones')} "
+        f"{_frase_soporte('Mensajes', 'mensajes')} Además, ninguna red atribuye "
+        "los mensajes a una publicación concreta."
+    )
+
+st.divider()
+
+# --------------------------------------------------------------------------- #
+# Bloque 3 — Evolución diaria
+# --------------------------------------------------------------------------- #
+col_izq, col_der = st.columns([0.55, 0.45])
+
+with col_izq:
+    st.subheader("Evolución diaria")
+    etiquetas = {v: k for k, v in config.METRICAS_SOCIAL.items()}
+    elegida = st.selectbox("Métrica", list(config.METRICAS_SOCIAL.values()),
+                           index=list(config.METRICAS_SOCIAL).index(
+                               config.METRICA_COMPARABLE))
+    metrica = etiquetas[elegida]
+    serie = social.serie_diaria(diario, metrica)
+    if serie.empty:
+        st.info(f"Ninguna red publica «{elegida}» en el periodo.")
+    else:
+        ui.linea_temporal(serie, x="fecha", y="valor", color="red",
+                          titulo=f"{elegida} por día", y_label=elegida)
+        fuera = config.redes_sin_metrica(metrica)
+        if fuera:
+            st.caption(
+                f"No se dibujan {', '.join(fuera)}: no publican esta métrica. "
+                "Se omiten en vez de pintarlas a cero, que haría parecer que no "
+                "rinden cuando lo que ocurre es que no informan."
+            )
+
+with col_der:
+    st.subheader("Seguidores ganados")
+    crec = social.crecimiento_seguidores(diario)
+    if crec.empty:
+        st.info("Sin datos de seguidores en el periodo.")
+    else:
+        ui.linea_temporal(crec, x="fecha", y="acumulado", color="red",
+                          titulo="Acumulado en el periodo", y_label="Seguidores")
+        st.caption(
+            "Acumulado de nuevos seguidores, no el total absoluto: los totales "
+            "de cada red son de órdenes distintos y en un mismo gráfico aplastan "
+            "a las redes pequeñas."
+        )
+
+st.divider()
+
+# --------------------------------------------------------------------------- #
+# Bloque 4 — Publicaciones
+# --------------------------------------------------------------------------- #
+st.subheader("Publicaciones")
+
+if posts.empty:
+    st.info("Sin publicaciones en el periodo.")
+else:
+    p = posts.copy()
+    p["interacciones"] = social.interacciones(p)
+    p["engagement"] = social.tasa_engagement(p)
+
+    f1, f2, f3 = st.columns([0.34, 0.34, 0.32])
+    redes_disp = [r for r in config.REDES_SOCIAL if r in set(p["red"])]
+    sel_redes = f1.multiselect("Redes", redes_disp, default=redes_disp)
+    orden_opciones = {
+        "Visualizaciones": "visualizaciones",
+        "Interacciones": "interacciones",
+        "Tasa de engagement": "engagement",
+        "Más reciente": "fecha",
+    }
+    sel_orden = f2.selectbox("Ordenar por", list(orden_opciones))
+    top_n = f3.selectbox("Mostrar", [10, 25, 50, "Todas"], index=1)
+
+    vista = p[p["red"].isin(sel_redes)] if sel_redes else p.iloc[0:0]
+    vista = vista.sort_values(orden_opciones[sel_orden], ascending=False,
+                              na_position="last")
+    total_filtradas = len(vista)
+    if top_n != "Todas":
+        vista = vista.head(int(top_n))
+
+    vista = vista.assign(
+        publicacion=[_enlace(t, u) for t, u in zip(vista["titulo"], vista["url"])],
+        fecha_txt=pd.to_datetime(vista["fecha"], errors="coerce").dt.strftime("%d/%m/%Y"),
+        red_txt=[html.escape(str(r)) for r in vista["red"]],
+        tipo_txt=[html.escape(str(t)) for t in vista["tipo"]],
+    )
+
+    ui.tabla(vista, [
+        {"key": "red_txt", "label": "Red", "align": "l"},
+        {"key": "fecha_txt", "label": "Fecha", "align": "l"},
+        {"key": "tipo_txt", "label": "Tipo", "align": "l"},
+        {"key": "publicacion", "label": "Publicación", "align": "l", "bold": True},
+        {"key": "visualizaciones", "label": "Visualiz.", "fmt": num_o_guion},
+        {"key": "impresiones", "label": "Impresiones", "fmt": num_o_guion},
+        {"key": "likes", "label": "Likes", "fmt": num_o_guion},
+        {"key": "comentarios", "label": "Coment.", "fmt": num_o_guion},
+        {"key": "compartidos", "label": "Compart.", "fmt": num_o_guion},
+        {"key": "guardados", "label": "Guardados", "fmt": num_o_guion},
+        {"key": "engagement", "label": "Engagement",
+         "fmt": lambda v: pct_o_guion(v, 2)},
+    ])
+
+    if top_n != "Todas" and total_filtradas > len(vista):
+        st.caption(f"Mostrando {len(vista)} de {num(total_filtradas)} "
+                   "publicaciones del filtro. Cambia «Mostrar» para ver más.")
+
+    st.caption(
+        f"{_frase_soporte('Guardados', 'guardados', 'post')} "
+        f"{_frase_soporte('Impresiones', 'impresiones', 'post')} "
+        "El engagement se calcula sobre visualizaciones."
+    )
+
+    # Ranking visual por red: qué red concentra el alcance del periodo.
+    st.write("")
+    r1, r2 = st.columns(2)
+    top_vis = (p.groupby("red", as_index=False)["visualizaciones"]
+               .sum(min_count=1).dropna()
+               .sort_values("visualizaciones", ascending=False))
+    ui.tarjeta_ranking(r1, "Visualizaciones por red", top_vis, "red",
+                       "visualizaciones",
+                       nota="Suma de las publicaciones del periodo")
+    top_int = (p.groupby("red", as_index=False)["interacciones"]
+               .sum(min_count=1).dropna()
+               .sort_values("interacciones", ascending=False))
+    ui.tarjeta_ranking(r2, "Interacciones por red", top_int, "red",
+                       "interacciones",
+                       nota="Likes + comentarios + compartidos")
+
+# --------------------------------------------------------------------------- #
+# Nota metodológica
+# --------------------------------------------------------------------------- #
+st.divider()
+with st.expander("Nota metodológica — qué mide cada red y qué no es comparable"):
+    st.markdown(
+        """
+**Los «—» son deliberados.** Cada red publica un conjunto distinto de métricas.
+Un guion significa *esta red no da este dato por API*; un 0 significaría *la red
+lo da y vale cero*. Confundirlos haría que un total agregado saliera bajo y que
+las comparativas entre redes mintieran, justo la decisión que este panel apoya.
+
+| Métrica | Quién NO la da | Por qué |
+|---|---|---|
+| **Impresiones** | Instagram, YouTube | Meta la retiró el 21-abr-2025 (Graph v22.0) y la sustituyó por *views*. En YouTube Analytics API no está confirmada para reportes de canal. |
+| **Alcance** | YouTube | No existe el concepto de alcance único de canal. |
+| **Mensajes** | YouTube, Instagram, LinkedIn | Solo Facebook expone conversaciones nuevas, y requiere el permiso `pages_messaging`. **Ninguna red atribuye mensajes a una publicación.** |
+| **Guardados** | Todas menos Instagram | Solo Instagram publica `saved`. |
+
+**Histórico.** Las APIs no van igual de atrás: YouTube da todo, Facebook ~2 años,
+LinkedIn 12 meses e Instagram es el caso extremo (seguidores solo 30 días, y
+*views* con histórico limitado). Lo anterior solo se puede cubrir con los exports
+CSV de cada plataforma, que este panel lee como fuente de primera clase.
+
+**Likes y comentarios de Facebook e Instagram** se agregan por día de
+**publicación**, igual que hace Business Suite. No equivale a «interacciones
+recibidas ese día» en publicaciones antiguas.
+
+**Todo lo de esta página es orgánico.** Las métricas de pago están en las páginas
+de Google Ads y Meta Ads.
+        """
+    )

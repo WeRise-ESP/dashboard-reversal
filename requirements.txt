@@ -10,4 +10,6 @@ requests>=2.31
 google-ads>=25.0            # Google Ads API
 google-analytics-data>=0.18 # GA4 Data API
 google-auth>=2.29           # Service Account para GA4
-# HubSpot y Meta usan REST directo vía `requests` (no requieren SDK)
+google-api-python-client>=2.120  # YouTube Data API v3 + YouTube Analytics v2
+google-auth-oauthlib>=1.2   # OAuth de usuario para YouTube (no admite SA)
+# HubSpot, Meta (Ads y orgánico) y LinkedIn usan REST directo vía `requests`

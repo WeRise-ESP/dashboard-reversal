@@ -18,6 +18,7 @@ y ROAS.
 | **📈 Google Analytics** | Tráfico de todo el sitio por canal: sesiones, usuarios, vistas, conversiones. |
 | **🎯 Leads (HubSpot)** | Asociación lead↔segmento, CPL/coste-matrícula, embudo y leads recientes. |
 | **🩺 Tracking & Atribución** | Semáforo de medición, diagnóstico de fugas de atribución y checklist de corrección. |
+| **📣 Social Orgánico** | YouTube, Facebook, Instagram y LinkedIn: visualizaciones, seguidores, interacciones y mensajes por red y **por publicación**. Solo alcance no pagado. |
 
 ## Puesta en marcha
 
@@ -35,7 +36,8 @@ ejemplo realistas (para validar la estructura y las visualizaciones).
 
 1. Copia `.streamlit/secrets.toml.example` a `.streamlit/secrets.toml`.
 2. Rellena **solo** las plataformas que quieras conectar (las demás siguen con ejemplo).
-3. Reinicia la app. El sidebar muestra el origen de cada fuente: **En vivo / Caché / Ejemplo**.
+3. Reinicia la app. El sidebar muestra el origen de cada fuente: **En vivo /
+   Caché / CSV importado / Histórico propio / Ejemplo**.
 
 ### Arquitectura de datos (importante)
 
@@ -75,16 +77,62 @@ En [`src/config.py`](src/config.py):
 ```
 Dashboard/
 ├── Resumen_Total.py           # Resumen Global (página principal)
-├── pages/                     # 5 páginas de detalle
+├── pages/                     # 6 páginas de detalle
 ├── src/
 │   ├── config.py              # cuentas, objetivos, mapeo de segmentos, tema
 │   ├── connectors/            # google_ads, meta_ads, ga4, hubspot, base
-│   ├── data/                  # loader, metrics, sample_data
+│   │                          # + youtube, meta_organico, linkedin, social_base
+│   ├── data/                  # loader, metrics, social, sample_data
 │   └── ui/                    # theme, components
+├── scripts/snapshot_social.py # job diario que acumula el histórico de RRSS
 ├── data/cache/                # caché de datos (git-ignored)
+├── data/import_social/        # exports CSV manuales de RRSS
+├── data/historico_social/     # histórico que acumula el job (sí va a git)
 ├── .streamlit/                # config.toml + secrets.toml.example
 └── requirements.txt
 ```
+
+## Social orgánico — accesos pendientes
+
+La página funciona ya con datos de ejemplo. Cada red se enciende de forma
+independiente en cuanto llega su credencial; que falte una no afecta a las demás.
+
+| Red | Qué hace falta | Dónde |
+|---|---|---|
+| **YouTube** | Habilitar YouTube Data API v3 + YouTube Analytics API en el proyecto de Cloud de GA4, crear un OAuth client de tipo *Desktop* y generar el refresh token con la cuenta **propietaria del canal** (Analytics no admite service account). | [APIs](https://console.cloud.google.com/apis/library/youtubeanalytics.googleapis.com) · [Credenciales](https://console.cloud.google.com/apis/credentials) · [Channel ID](https://www.youtube.com/account_advanced) |
+| **Facebook + Instagram** | Token del System User con `pages_show_list`, `pages_read_engagement`, `read_insights`, `instagram_basic`, `instagram_manage_insights` (+ `pages_messaging` para mensajes) **y asignar la Página al System User**. El token de `[meta_ads]` NO sirve: solo tiene `ads_*`. | [System Users](https://business.facebook.com/settings/system-users) · [Depurador de tokens](https://developers.facebook.com/tools/debug/accesstoken/) |
+| **LinkedIn** | App **nueva y dedicada** (Community Management API no convive con otros productos), verificada contra la Company Page, y solicitud de acceso con revisión manual. Development Tier basta. | [Crear app](https://www.linkedin.com/developers/apps/new) · [Requisitos](https://learn.microsoft.com/en-us/linkedin/marketing/community-management-app-review) |
+
+Secciones de `secrets.toml`: `[youtube]`, `[social_meta]` y `[linkedin]` (ver el
+encabezado de cada conector en `src/connectors/`).
+
+**Histórico:** las APIs no llegan igual de atrás (YouTube todo · Facebook ~2 años
+· LinkedIn 12 meses · **Instagram solo 30 días de seguidores**). Lo anterior solo
+se cubre con exports CSV en `data/import_social/`, y lo que no se capture se
+pierde de forma definitiva.
+
+### Job diario de histórico
+
+`scripts/snapshot_social.py` captura cada día lo que dan las APIs y lo acumula en
+`data/historico_social/`, que `social_base.resolver` funde **por debajo** de lo
+que devuelva la API (la API manda en las fechas que cubre; el histórico rellena
+lo anterior). Sin él, la ventana de Instagram se desliza y el pasado desaparece.
+
+```bash
+python scripts/snapshot_social.py --dry-run   # ver qué haría, sin escribir
+python scripts/snapshot_social.py             # últimos 30 días
+python scripts/snapshot_social.py --dias 730  # relleno inicial hacia atrás
+```
+
+Cron, **el mismo día que llegue la primera credencial**:
+
+```bash
+0 4 * * * cd /ruta/a/Dashboard && .venv/bin/python scripts/snapshot_social.py
+```
+
+Salta las redes sin credencial sin tocar su histórico, así que se puede arrancar
+con una sola red configurada. ⚠️ Streamlit Cloud no ejecuta cron: el histórico
+llega a producción porque los CSV se commitean y se hace push.
 
 ## Despliegue en Streamlit Cloud
 

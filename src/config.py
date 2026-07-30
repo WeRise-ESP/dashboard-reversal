@@ -413,4 +413,139 @@ COLOR_PLATAFORMA = {
     "Meta Ads": TEMA.color_meta,
     "Google Analytics": TEMA.color_ga4,
     "HubSpot": TEMA.color_hubspot,
+    # Las redes de social orgánico se añaden más abajo (COLOR_RED_SOCIAL), para
+    # que los gráficos las pinten con su color de marca sin tocar los componentes.
 }
+
+
+# --------------------------------------------------------------------------- #
+# SOCIAL ORGÁNICO — YouTube, Facebook, Instagram y LinkedIn.
+#
+# ⚠️ LEE ESTO ANTES DE TOCAR LAS MÉTRICAS DE SOCIAL.
+#
+# Las 4 redes NO dan las mismas métricas, así que el esquema normalizado tiene
+# columnas que unas redes rellenan y otras dejan a NULO. Un nulo aquí significa
+# «esta red no publica este dato», que NO es lo mismo que un cero.
+#
+# Poner 0 en lugar de nulo haría que un KPI agregado («impresiones totales»)
+# saliera artificialmente bajo y que las comparativas entre redes mintieran sin
+# avisar — justo la decisión (¿en qué red invierto?) que este panel debe apoyar.
+# Por eso el soporte se declara aquí y `src/data/social.py` lo IMPONE: cualquier
+# valor que un conector escriba en una casilla no soportada se convierte a nulo.
+# --------------------------------------------------------------------------- #
+
+REDES_SOCIAL: tuple[str, ...] = ("YouTube", "Facebook", "Instagram", "LinkedIn")
+
+# Colores de identidad de cada red (para distinguir series en los gráficos).
+# Colores de marca de cada red. LinkedIn usa su azul OSCURO (#004182, secundario
+# oficial) en vez del #0A66C2 habitual: junto al azul de Facebook las dos líneas
+# del gráfico eran indistinguibles.
+COLOR_RED_SOCIAL = {
+    "YouTube": "#FF0000",
+    "Facebook": "#1877F2",
+    "Instagram": "#E1306C",
+    "LinkedIn": "#004182",
+}
+
+COLOR_PLATAFORMA.update(COLOR_RED_SOCIAL)
+
+# Métricas del esquema diario (nivel cuenta) -> etiqueta legible.
+METRICAS_SOCIAL = {
+    "impresiones": "Impresiones",
+    "visualizaciones": "Visualizaciones",
+    "alcance": "Alcance",
+    "seguidores_nuevos": "Nuevos seguidores",
+    "likes": "Likes",
+    "comentarios": "Comentarios",
+    "compartidos": "Compartidos",
+    "mensajes": "Mensajes",
+}
+
+# Métricas del esquema por publicación -> etiqueta legible.
+METRICAS_POST = {
+    "impresiones": "Impresiones",
+    "visualizaciones": "Visualizaciones",
+    "likes": "Likes",
+    "comentarios": "Comentarios",
+    "compartidos": "Compartidos",
+    "guardados": "Guardados",
+}
+
+# Qué red publica de verdad cada métrica diaria por API (verificado jul-2026).
+#
+# - Instagram NO tiene «impresiones»: Meta la retiró el 21-abr-2025 (Graph v22.0)
+#   y la sustituyó por `views`, que aquí es `visualizaciones`.
+# - «Mensajes» (DMs / conversaciones nuevas) solo existe a nivel de cuenta y solo
+#   en Facebook (`page_messages_new_conversations_unique`, requiere el permiso
+#   `pages_messaging`). Ninguna red lo atribuye a una publicación concreta.
+# - YouTube no tiene concepto de alcance único ni de mensajes.
+SOPORTE_METRICA_SOCIAL: dict[str, set[str]] = {
+    "impresiones": {"Facebook", "LinkedIn"},
+    "visualizaciones": {"YouTube", "Facebook", "Instagram", "LinkedIn"},
+    "alcance": {"Facebook", "Instagram", "LinkedIn"},
+    "seguidores_nuevos": {"YouTube", "Facebook", "Instagram", "LinkedIn"},
+    "likes": {"YouTube", "Facebook", "Instagram", "LinkedIn"},
+    "comentarios": {"YouTube", "Facebook", "Instagram", "LinkedIn"},
+    "compartidos": {"YouTube", "Facebook", "Instagram", "LinkedIn"},
+    "mensajes": {"Facebook"},
+}
+
+# Ídem por publicación. «Guardados» solo lo da Instagram (`saved`).
+SOPORTE_METRICA_POST: dict[str, set[str]] = {
+    "impresiones": {"Facebook", "LinkedIn"},
+    "visualizaciones": {"YouTube", "Facebook", "Instagram", "LinkedIn"},
+    "likes": {"YouTube", "Facebook", "Instagram", "LinkedIn"},
+    "comentarios": {"YouTube", "Facebook", "Instagram", "LinkedIn"},
+    "compartidos": {"YouTube", "Facebook", "Instagram", "LinkedIn"},
+    "guardados": {"Instagram"},
+}
+
+# Pares (métrica, red) que NO están confirmados contra la cuenta real y que hasta
+# entonces se tratan como NO soportados (=> nulo). En YouTube Analytics API v2 no
+# está confirmado que `impressions` esté disponible para reportes de canal (en
+# Studio sí se ve). Cuando haya acceso al canal se comprueba: si está, se mueve
+# "YouTube" a SOPORTE_METRICA_SOCIAL["impresiones"] y se quita de aquí.
+SOPORTE_POR_VERIFICAR: set[tuple[str, str]] = {
+    ("impresiones", "YouTube"),
+}
+
+# Métrica que se usa como KPI principal comparable entre las 4 redes. NO se usa
+# «impresiones» porque Instagram ya no la publica (ver nota de arriba).
+METRICA_COMPARABLE = "visualizaciones"
+
+# Interacciones = suma de las métricas de engagement. Las 4 redes dan las tres,
+# así que este agregado SÍ es comparable entre redes.
+METRICAS_INTERACCION = ("likes", "comentarios", "compartidos")
+
+# Cuentas de social orgánico (TODO: rellenar cuando lleguen los accesos).
+YOUTUBE_CHANNEL_ID = ""        # TODO "UC..." — youtube.com/account_advanced
+SOCIAL_FACEBOOK_PAGE_ID = ""   # TODO — Meta Business Suite → Configuración
+SOCIAL_INSTAGRAM_USER_ID = ""  # se deriva de la Página si está vacío
+LINKEDIN_ORGANIZATION_ID = ""  # TODO — /company/XXXXXXX/admin
+
+# El social orgánico se mueve despacio y sus APIs tienen cuotas ajustadas.
+CACHE_TTL_SOCIAL = 3600  # 1 h
+
+
+def soporta_metrica(metrica: str, red: str, ambito: str = "diario") -> bool:
+    """True si `red` publica `metrica` por API en el ámbito dado.
+
+    `ambito`: "diario" (nivel cuenta) o "post" (por publicación).
+    Los pares pendientes de verificar cuentan como NO soportados.
+    """
+    if (metrica, red) in SOPORTE_POR_VERIFICAR:
+        return False
+    tabla = SOPORTE_METRICA_POST if ambito == "post" else SOPORTE_METRICA_SOCIAL
+    return red in tabla.get(metrica, set())
+
+
+def redes_sin_metrica(metrica: str, ambito: str = "diario") -> list[str]:
+    """Redes que NO publican la métrica (para avisar al pie de cada agregado)."""
+    return [r for r in REDES_SOCIAL if not soporta_metrica(metrica, r, ambito)]
+
+
+def metricas_comparables(ambito: str = "diario") -> list[str]:
+    """Métricas que las 4 redes publican, y que por tanto se pueden sumar y
+    comparar entre redes sin nota al pie."""
+    metricas = METRICAS_POST if ambito == "post" else METRICAS_SOCIAL
+    return [m for m in metricas if not redes_sin_metrica(m, ambito)]

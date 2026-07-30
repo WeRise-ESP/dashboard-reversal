@@ -1,0 +1,477 @@
+"""
+Conector de Facebook e Instagram ORGÁNICO (Graph API).
+
+Cascada por red: API real -> caché -> CSV importado -> datos de ejemplo.
+Facebook e Instagram se resuelven POR SEPARADO (cachés y semáforos propios):
+si Instagram no está vinculado a la Página, Facebook sigue funcionando.
+
+Credenciales esperadas en .streamlit/secrets.toml:
+    [social_meta]
+    access_token = "..."   # System User del Business, o token de Página
+    page_id      = "..."
+    ig_user_id   = "..."   # opcional: si falta, se deriva de la Página
+    api_version  = "v21.0" # opcional
+
+⚠️ Este token NO es el de [meta_ads]. El de Ads solo tiene ads_management /
+ads_read (comprobado: `/me/accounts` devuelve vacío con él). Aquí hacen falta
+pages_show_list, pages_read_engagement, read_insights, instagram_basic,
+instagram_manage_insights y —solo para mensajes— pages_messaging.
+
+⚠️ INSTAGRAM NO TIENE IMPRESIONES. Meta retiró `impressions` el 21-abr-2025
+(Graph v22.0) y la sustituyó por `views`. La columna sale a nulo por config.
+
+⚠️ Los nombres de métrica de Page Insights los renombra y deprecia Meta a
+menudo, y esta capa está SIN VERIFICAR contra la página real. Por eso las
+métricas se piden con `_insights_tolerante`: si un nombre ya no existe, esa
+métrica queda a NULO en vez de tumbar la llamada entera.
+"""
+from __future__ import annotations
+
+from datetime import timedelta
+
+import pandas as pd
+
+from src import config
+from src.connectors.base import ResultadoConector, _leer_secreto
+from src.connectors.social_base import resolver
+from src.data import sample_data, social
+
+RED_FB = "Facebook"
+RED_IG = "Instagram"
+
+_VERSION_POR_DEFECTO = "v21.0"
+
+# Métrica normalizada -> nombres de Page Insights a probar, en orden de
+# preferencia. El primero que la API acepte es el que se usa.
+_MAPA_FB_DIA = {
+    "impresiones": ["page_impressions_organic_v2", "page_impressions_organic",
+                    "page_impressions"],
+    "alcance": ["page_impressions_unique"],
+    # "Views" unificadas de Meta; si la Página no las expone, cae a vídeo (y si
+    # tampoco, queda a nulo, que es preferible a inventar el dato).
+    "visualizaciones": ["views", "page_views", "page_video_views"],
+    "seguidores_nuevos": ["page_fan_adds_unique", "page_fan_adds", "page_follows"],
+    # Requiere pages_messaging; sin ese permiso queda a nulo.
+    "mensajes": ["page_messages_new_conversations_unique"],
+}
+
+_MAPA_IG_DIA = {
+    "visualizaciones": ["views", "impressions"],
+    "alcance": ["reach"],
+    # ⚠️ La API solo devuelve follower_count de los últimos 30 días. Para un
+    # periodo más largo Meta da error y esta métrica queda a nulo: el histórico
+    # anterior solo se puede cubrir con los CSV importados.
+    "seguidores_nuevos": ["follower_count"],
+}
+
+# Tope de publicaciones a las que se piden insights (una llamada por publicación).
+# Si se alcanza, el conector lo dice en el `detalle` para que la UI no dé a
+# entender que están todas.
+_TOPE_POSTS = 100
+
+
+# --------------------------------------------------------------------------- #
+# Entradas públicas
+# --------------------------------------------------------------------------- #
+
+def obtener_facebook(desde, hasta) -> ResultadoConector:
+    creds = _leer_secreto("social_meta")
+    return resolver(
+        clave="social_facebook_diario",
+        fn_api=(lambda: _api_fb_diario(creds, desde, hasta)) if creds else None,
+        fn_muestra=lambda: _muestra(RED_FB, desde, hasta, "diario"),
+        normalizar=social.normalizar_diario,
+        detalle_api="Facebook Page Insights",
+        periodo=(desde, hasta),
+    )
+
+
+def obtener_posts_facebook(desde, hasta) -> ResultadoConector:
+    creds = _leer_secreto("social_meta")
+    return resolver(
+        clave="social_facebook_posts",
+        fn_api=(lambda: _api_fb_posts(creds, desde, hasta)) if creds else None,
+        fn_muestra=lambda: _muestra(RED_FB, desde, hasta, "posts"),
+        normalizar=social.normalizar_posts,
+        detalle_api="Facebook published_posts + insights",
+        periodo=(desde, hasta),
+        claves_historico=("red", "post_id"),
+    )
+
+
+def obtener_instagram(desde, hasta) -> ResultadoConector:
+    creds = _leer_secreto("social_meta")
+    return resolver(
+        clave="social_instagram_diario",
+        fn_api=(lambda: _api_ig_diario(creds, desde, hasta)) if creds else None,
+        fn_muestra=lambda: _muestra(RED_IG, desde, hasta, "diario"),
+        normalizar=social.normalizar_diario,
+        detalle_api="Instagram Insights",
+        periodo=(desde, hasta),
+    )
+
+
+def obtener_posts_instagram(desde, hasta) -> ResultadoConector:
+    creds = _leer_secreto("social_meta")
+    return resolver(
+        clave="social_instagram_posts",
+        fn_api=(lambda: _api_ig_posts(creds, desde, hasta)) if creds else None,
+        fn_muestra=lambda: _muestra(RED_IG, desde, hasta, "posts"),
+        normalizar=social.normalizar_posts,
+        detalle_api="Instagram media + insights",
+        periodo=(desde, hasta),
+        claves_historico=("red", "post_id"),
+    )
+
+
+def _muestra(red: str, desde, hasta, ambito: str) -> pd.DataFrame:
+    df = (sample_data.social_posts(desde, hasta) if ambito == "posts"
+          else sample_data.social_diario(desde, hasta))
+    return df[df["red"] == red]
+
+
+# --------------------------------------------------------------------------- #
+# Utilidades de Graph API
+# --------------------------------------------------------------------------- #
+
+def _version(creds: dict) -> str:
+    return creds.get("api_version", _VERSION_POR_DEFECTO)
+
+
+def _get(version: str, path: str, token: str, params: dict | None = None) -> dict:
+    """GET a Graph API. Lanza excepción si la respuesta trae error."""
+    import requests
+
+    p = dict(params or {})
+    p["access_token"] = token
+    r = requests.get(f"https://graph.facebook.com/{version}/{path}", params=p,
+                     timeout=60)
+    datos = r.json()
+    if isinstance(datos, dict) and "error" in datos:
+        raise RuntimeError(datos["error"].get("message", "error de Graph API"))
+    r.raise_for_status()
+    return datos
+
+
+def _token_pagina(creds: dict) -> tuple[str, str]:
+    """(page_id, page_token).
+
+    Si el token de secrets ya es de Página, se usa tal cual. Si es de usuario o
+    de System User, se cambia por el token de la Página, que es el que aceptan
+    los endpoints de insights.
+    """
+    version = _version(creds)
+    token = creds["access_token"]
+    page_id = creds.get("page_id") or config.SOCIAL_FACEBOOK_PAGE_ID
+    if not page_id:
+        raise RuntimeError("Falta page_id en [social_meta] o en config")
+
+    try:
+        datos = _get(version, page_id, token, {"fields": "access_token"})
+        if datos.get("access_token"):
+            return page_id, datos["access_token"]
+    except Exception:  # noqa: BLE001
+        # Si no devuelve token de Página, es que el token YA es de Página.
+        pass
+    return page_id, token
+
+
+def _ig_user_id(creds: dict, page_id: str, page_token: str) -> str:
+    """ID de la cuenta de Instagram Business vinculada a la Página."""
+    if creds.get("ig_user_id"):
+        return creds["ig_user_id"]
+    if config.SOCIAL_INSTAGRAM_USER_ID:
+        return config.SOCIAL_INSTAGRAM_USER_ID
+    datos = _get(_version(creds), page_id, page_token,
+                 {"fields": "instagram_business_account"})
+    cuenta = (datos.get("instagram_business_account") or {}).get("id")
+    if not cuenta:
+        raise RuntimeError(
+            "La Página no tiene cuenta de Instagram Business vinculada "
+            "(o al token le falta instagram_basic)"
+        )
+    return cuenta
+
+
+def _insights_tolerante(version: str, objeto_id: str, token: str,
+                        mapa: dict[str, list[str]], desde, hasta,
+                        ) -> dict[str, dict]:
+    """Pide insights y devuelve {metrica_normalizada: {fecha: valor}}.
+
+    Prueba los nombres candidatos de cada métrica en bloque. Si el bloque falla
+    (Meta rechaza TODA la llamada cuando un nombre no existe), reintenta métrica
+    a métrica y descarta solo las que no estén disponibles. Lo que no se puede
+    obtener no aparece en el resultado, y acaba como nulo en el DataFrame.
+    """
+    params_base = {"period": "day", "since": str(desde), "until": str(hasta)}
+    resultado: dict[str, dict] = {}
+
+    # Primer intento: el candidato preferido de cada métrica, todos juntos.
+    preferidos = {m: cands[0] for m, cands in mapa.items() if cands}
+    intentos: list[dict[str, str]] = [preferidos]
+    # Reintentos: cada (métrica, candidato) por separado.
+    for metrica, candidatos in mapa.items():
+        for cand in candidatos:
+            intentos.append({metrica: cand})
+
+    for i, intento in enumerate(intentos):
+        pendientes = {m: c for m, c in intento.items() if m not in resultado}
+        if not pendientes:
+            continue
+        try:
+            datos = _get(version, f"{objeto_id}/insights", token,
+                         {**params_base, "metric": ",".join(pendientes.values())})
+        except Exception:  # noqa: BLE001
+            continue
+
+        # nombre de API -> métrica normalizada
+        inverso = {c: m for m, c in pendientes.items()}
+        for bloque in datos.get("data", []):
+            metrica = inverso.get(bloque.get("name"))
+            if not metrica:
+                continue
+            serie = {}
+            for v in bloque.get("values", []):
+                fecha = _fecha_de_periodo(v.get("end_time"))
+                if fecha is not None:
+                    serie[fecha] = v.get("value")
+            if serie:
+                resultado[metrica] = serie
+        # Tras el intento en bloque seguimos con los individuales solo para las
+        # métricas que no hayan salido.
+        if i == 0:
+            continue
+    return resultado
+
+
+def _fecha_de_periodo(end_time: str | None):
+    """Convierte el `end_time` de un insight con period=day en SU fecha.
+
+    Trampa clásica de Meta: con period=day el valor cubre las 24 h que TERMINAN
+    en `end_time`, y `end_time` cae de madrugada del día SIGUIENTE. Usar su fecha
+    tal cual desplaza toda la serie un día. Por eso se resta un día.
+    """
+    if not end_time:
+        return None
+    ts = pd.to_datetime(end_time, errors="coerce", utc=True)
+    if pd.isna(ts):
+        return None
+    return (ts - timedelta(days=1)).date()
+
+
+def _series_a_df(series: dict[str, dict], red: str) -> pd.DataFrame:
+    """{metrica: {fecha: valor}} -> DataFrame con una fila por fecha."""
+    fechas = sorted({f for serie in series.values() for f in serie})
+    if not fechas:
+        return pd.DataFrame()
+    filas = []
+    for f in fechas:
+        fila = {"fecha": f, "red": red}
+        for metrica, serie in series.items():
+            valor = serie.get(f)
+            # Algunas métricas devuelven dict (desglose por tipo); se suma.
+            if isinstance(valor, dict):
+                valor = sum(v for v in valor.values() if isinstance(v, (int, float)))
+            fila[metrica] = valor
+        filas.append(fila)
+    return pd.DataFrame(filas)
+
+
+# --------------------------------------------------------------------------- #
+# Facebook
+# --------------------------------------------------------------------------- #
+
+def _api_fb_diario(creds: dict, desde, hasta) -> pd.DataFrame:
+    version = _version(creds)
+    page_id, token = _token_pagina(creds)
+    series = _insights_tolerante(version, page_id, token, _MAPA_FB_DIA, desde, hasta)
+    df = _series_a_df(series, RED_FB)
+
+    # Likes y comentarios de la Página no son métricas de Page Insights: se
+    # agregan desde las publicaciones del periodo.
+    df = _sumar_engagement_de_posts(df, _api_fb_posts(creds, desde, hasta), RED_FB)
+
+    if not df.empty:
+        total = _seguidores_pagina(version, page_id, token)
+        if total is not None:
+            df.loc[df.index[-1], "seguidores_total"] = total
+    return df
+
+
+def _seguidores_pagina(version: str, page_id: str, token: str) -> int | None:
+    try:
+        datos = _get(version, page_id, token, {"fields": "followers_count,fan_count"})
+        return int(datos.get("followers_count") or datos.get("fan_count") or 0) or None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _api_fb_posts(creds: dict, desde, hasta) -> pd.DataFrame:
+    version = _version(creds)
+    page_id, token = _token_pagina(creds)
+
+    campos = ("id,message,story,created_time,permalink_url,full_picture,"
+              "shares,comments.summary(true).limit(0),"
+              "reactions.summary(true).limit(0)")
+    datos = _get(version, f"{page_id}/published_posts", token, {
+        "fields": campos, "since": str(desde), "until": str(hasta), "limit": 100,
+    })
+
+    filas = []
+    for p in datos.get("data", [])[:_TOPE_POSTS]:
+        pid = p.get("id")
+        insights = _insights_post_fb(version, pid, token)
+        texto = (p.get("message") or p.get("story") or "").strip()
+        filas.append(dict(
+            red=RED_FB, post_id=pid,
+            fecha=(p.get("created_time") or "")[:10],
+            tipo="Publicación",
+            titulo=(texto[:120] or "(sin texto)"),
+            url=p.get("permalink_url", ""),
+            miniatura=p.get("full_picture", ""),
+            impresiones=insights.get("impresiones"),
+            visualizaciones=insights.get("visualizaciones"),
+            likes=(p.get("reactions", {}).get("summary", {}) or {}).get("total_count"),
+            comentarios=(p.get("comments", {}).get("summary", {}) or {}).get("total_count"),
+            compartidos=(p.get("shares", {}) or {}).get("count", 0),
+        ))
+    return pd.DataFrame(filas)
+
+
+def _insights_post_fb(version: str, post_id: str, token: str) -> dict:
+    """Impresiones y visualizaciones de UNA publicación. {} si no se pueden leer."""
+    for metricas in (("post_impressions_organic", "post_video_views"),
+                     ("post_impressions", "post_video_views"),
+                     ("post_impressions",)):
+        try:
+            datos = _get(version, f"{post_id}/insights", token,
+                         {"metric": ",".join(metricas)})
+        except Exception:  # noqa: BLE001
+            continue
+        out = {}
+        for bloque in datos.get("data", []):
+            valores = bloque.get("values") or [{}]
+            valor = valores[0].get("value")
+            if bloque.get("name", "").startswith("post_impressions"):
+                out["impresiones"] = valor
+            elif bloque.get("name") == "post_video_views":
+                out["visualizaciones"] = valor
+        if out:
+            return out
+    return {}
+
+
+def _sumar_engagement_de_posts(diario: pd.DataFrame, posts: pd.DataFrame,
+                               red: str) -> pd.DataFrame:
+    """Añade likes/comentarios/compartidos diarios agregando las publicaciones.
+
+    Se atribuyen al día de PUBLICACIÓN, que es lo que hace Business Suite. No es
+    lo mismo que «interacciones recibidas ese día» en publicaciones antiguas, y
+    por eso la página lo advierte en la nota metodológica.
+    """
+    if posts is None or posts.empty:
+        return diario
+    p = posts.copy()
+    p["fecha"] = pd.to_datetime(p["fecha"], errors="coerce").dt.date
+    agg = (p.groupby("fecha", as_index=False)[["likes", "comentarios", "compartidos"]]
+           .sum(min_count=1))
+    if diario is None or diario.empty:
+        agg["red"] = red
+        return agg
+    d = diario.copy()
+    d["fecha"] = pd.to_datetime(d["fecha"], errors="coerce").dt.date
+    return d.merge(agg, on="fecha", how="left")
+
+
+# --------------------------------------------------------------------------- #
+# Instagram
+# --------------------------------------------------------------------------- #
+
+def _api_ig_diario(creds: dict, desde, hasta) -> pd.DataFrame:
+    version = _version(creds)
+    page_id, token = _token_pagina(creds)
+    ig = _ig_user_id(creds, page_id, token)
+
+    series = _insights_tolerante(version, ig, token, _MAPA_IG_DIA, desde, hasta)
+    df = _series_a_df(series, RED_IG)
+    df = _sumar_engagement_de_posts(df, _api_ig_posts(creds, desde, hasta), RED_IG)
+
+    if not df.empty:
+        try:
+            datos = _get(version, ig, token, {"fields": "followers_count"})
+            if datos.get("followers_count"):
+                df.loc[df.index[-1], "seguidores_total"] = int(datos["followers_count"])
+        except Exception:  # noqa: BLE001
+            pass
+    return df
+
+
+_TIPO_IG = {"IMAGE": "Imagen", "VIDEO": "Reel", "CAROUSEL_ALBUM": "Carrusel",
+            "REELS": "Reel", "STORY": "Story"}
+
+
+def _api_ig_posts(creds: dict, desde, hasta) -> pd.DataFrame:
+    version = _version(creds)
+    page_id, token = _token_pagina(creds)
+    ig = _ig_user_id(creds, page_id, token)
+
+    campos = ("id,caption,media_type,media_product_type,permalink,thumbnail_url,"
+              "media_url,timestamp,like_count,comments_count")
+    datos = _get(version, f"{ig}/media", token, {"fields": campos, "limit": 100})
+
+    desde_d = pd.to_datetime(desde).date()
+    hasta_d = pd.to_datetime(hasta).date()
+
+    filas = []
+    for m in datos.get("data", []):
+        fecha = pd.to_datetime(m.get("timestamp"), errors="coerce", utc=True)
+        if pd.isna(fecha):
+            continue
+        fecha = fecha.date()
+        # /media no filtra por fechas: se acota aquí.
+        if not (desde_d <= fecha <= hasta_d):
+            continue
+        if len(filas) >= _TOPE_POSTS:
+            break
+        insights = _insights_post_ig(version, m["id"], token)
+        caption = (m.get("caption") or "").strip()
+        crudo = m.get("media_product_type") or m.get("media_type") or ""
+        filas.append(dict(
+            red=RED_IG, post_id=m["id"], fecha=fecha,
+            tipo=_TIPO_IG.get(crudo.upper(), "Publicación"),
+            titulo=(caption[:120] or "(sin texto)"),
+            url=m.get("permalink", ""),
+            miniatura=m.get("thumbnail_url") or m.get("media_url") or "",
+            visualizaciones=insights.get("visualizaciones"),
+            likes=m.get("like_count"),
+            comentarios=m.get("comments_count"),
+            compartidos=insights.get("compartidos"),
+            guardados=insights.get("guardados"),
+        ))
+    return pd.DataFrame(filas)
+
+
+def _insights_post_ig(version: str, media_id: str, token: str) -> dict:
+    """views / shares / saved de UNA publicación. {} si no se pueden leer.
+
+    `views` sustituyó a `impressions` en v22.0; se prueba primero.
+    """
+    for metricas in (("views", "shares", "saved"),
+                     ("impressions", "saved"),
+                     ("views",)):
+        try:
+            datos = _get(version, f"{media_id}/insights", token,
+                         {"metric": ",".join(metricas)})
+        except Exception:  # noqa: BLE001
+            continue
+        traduccion = {"views": "visualizaciones", "impressions": "visualizaciones",
+                      "shares": "compartidos", "saved": "guardados"}
+        out = {}
+        for bloque in datos.get("data", []):
+            clave = traduccion.get(bloque.get("name"))
+            if clave:
+                valores = bloque.get("values") or [{}]
+                out[clave] = valores[0].get("value")
+        if out:
+            return out
+    return {}

@@ -10,7 +10,9 @@ import pandas as pd
 import streamlit as st
 
 from src import config
-from src.connectors import ga4, google_ads, hubspot, meta_ads
+from src.connectors import ga4, google_ads, hubspot, linkedin, meta_ads, meta_organico
+from src.connectors import youtube as youtube_conn
+from src.data import social as social_schema
 
 
 @dataclass
@@ -62,6 +64,71 @@ def _cargar_hubspot(desde, hasta):
     leads = hubspot.obtener(desde, hasta)
     deals = hubspot.obtener_deals(desde, hasta)
     return leads.df, leads.origen, deals.df
+
+
+# --------------------------------------------------------------------------- #
+# Social orgánico
+#
+# Va en su propia función, NO dentro de `cargar_todo`, para que las 5 páginas de
+# Ads/GA4/HubSpot no paguen el coste de 8 llamadas a APIs de social que no usan.
+# --------------------------------------------------------------------------- #
+
+@dataclass
+class DatosSocial:
+    diario: pd.DataFrame        # una fila por (fecha, red)
+    posts: pd.DataFrame         # una fila por publicación
+    origenes: dict              # {"YouTube": "api", "LinkedIn": "sample", ...}
+
+    def hay_datos_reales(self) -> bool:
+        return any(o in ("api", "cache", "csv", "historico")
+                   for o in self.origenes.values())
+
+
+# Una entrada por red: (nombre, fn_diario, fn_posts).
+_FUENTES_SOCIAL = (
+    ("YouTube", lambda d, h: youtube_conn.obtener(d, h),
+     lambda d, h: youtube_conn.obtener_posts(d, h)),
+    ("Facebook", lambda d, h: meta_organico.obtener_facebook(d, h),
+     lambda d, h: meta_organico.obtener_posts_facebook(d, h)),
+    ("Instagram", lambda d, h: meta_organico.obtener_instagram(d, h),
+     lambda d, h: meta_organico.obtener_posts_instagram(d, h)),
+    ("LinkedIn", lambda d, h: linkedin.obtener(d, h),
+     lambda d, h: linkedin.obtener_posts(d, h)),
+)
+
+
+@st.cache_data(ttl=config.CACHE_TTL_SOCIAL, show_spinner="Cargando social orgánico…")
+def _cargar_social(desde, hasta):
+    diarios, posts, origenes = [], [], {}
+    for red, fn_diario, fn_posts in _FUENTES_SOCIAL:
+        # Cada red se resuelve aislada: si una revienta de forma inesperada, las
+        # otras tres se siguen viendo. El conector ya cae a ejemplo por su cuenta;
+        # esto cubre además fallos de importación de sus dependencias.
+        try:
+            r_diario = fn_diario(desde, hasta)
+            diarios.append(r_diario.df)
+            origenes[red] = r_diario.origen
+        except Exception:  # noqa: BLE001
+            origenes[red] = "sample"
+        try:
+            posts.append(fn_posts(desde, hasta).df)
+        except Exception:  # noqa: BLE001
+            pass
+
+    diario = (pd.concat([d for d in diarios if d is not None and not d.empty],
+                        ignore_index=True)
+              if any(d is not None and not d.empty for d in diarios)
+              else social_schema.esquema_diario_vacio())
+    df_posts = (pd.concat([p for p in posts if p is not None and not p.empty],
+                          ignore_index=True)
+                if any(p is not None and not p.empty for p in posts)
+                else social_schema.esquema_posts_vacio())
+    return diario, df_posts, origenes
+
+
+def cargar_social(desde, hasta) -> DatosSocial:
+    diario, posts, origenes = _cargar_social(desde, hasta)
+    return DatosSocial(diario=diario, posts=posts, origenes=origenes)
 
 
 def cargar_todo(desde, hasta) -> DatosDashboard:

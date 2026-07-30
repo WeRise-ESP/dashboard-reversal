@@ -92,8 +92,12 @@ def selector_periodo(default: int = 30):
     return desde, hasta, sel
 
 
-def aviso_origenes(origenes: dict) -> None:
-    """Muestra en el sidebar de qué fuente vienen los datos de cada plataforma."""
+def aviso_origenes(origenes: dict, nota: str | None = None) -> None:
+    """Muestra en el sidebar de qué fuente vienen los datos de cada plataforma.
+
+    `nota` sustituye el texto de refresco por defecto (que habla de HubSpot y
+    Ads). Lo usa la página de social orgánico, con TTL y fuentes propios.
+    """
     from src import config
 
     st.sidebar.markdown("**Origen de los datos**")
@@ -104,11 +108,11 @@ def aviso_origenes(origenes: dict) -> None:
     if st.sidebar.button("🔄 Actualizar ahora", width='stretch'):
         st.cache_data.clear()
         st.rerun()
-    st.sidebar.caption(
+    st.sidebar.caption(nota or (
         f"HubSpot se refresca cada {config.CACHE_TTL_HUBSPOT // 60} min · "
         f"Ads/GA4 cada {config.CACHE_TTL_ADS // 60} min. "
         "Usa «Actualizar ahora» para forzar."
-    )
+    ))
     if all(o == "sample" for o in origenes.values()):
         st.sidebar.info(
             "Estás viendo **datos de ejemplo**. Configura credenciales en "

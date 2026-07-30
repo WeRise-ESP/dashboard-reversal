@@ -77,8 +77,19 @@ Tema de marca: verde `#0E7C52` (`src/config.py` → `TEMA`).
   puede ser más ancha que la de ahora (`social_base._recortar`). Al resultado de
   la API no se le aplica porque se le pidió justo ese rango.
 - **LinkedIn Community Management API tiene que ser el ÚNICO producto de la app.**
-  No convive con Marketing Developer Platform: si ya hay app de Ads, hace falta
-  una app NUEVA. Requiere revisión manual de LinkedIn y organización registrada.
+  Y «único» es literal: LinkedIn deja *Request access* en gris si hay **cualquier
+  otro producto concedido O una solicitud pendiente sin resolver** («This product
+  cannot be requested because there are currently other provisioned products or
+  other pending product requests»). No basta con no tener Marketing Developer
+  Platform. Ojo con los productos que la propia app trae de serie: cuentan.
+  La app tiene que estar además verificada contra la Company Page, y el acceso
+  requiere revisión manual de LinkedIn y organización registrada.
+  Verificado en jul-2026 sobre la app "ReversalLinkd" (77214n5ht2ek85).
+- **Los errores de OAuth de LinkedIn no dicen la causa.** `invalid_scope_error`
+  y `unauthorized_scope_error` («The requested permission scope is not valid»)
+  significan casi siempre lo mismo: el producto no está concedido, así que esos
+  scopes no existen para la app. Igual que recibir un access token SIN
+  refresh_token. Lo traduce `scripts/linkedin_refresh_token.py`.
 - **Page Insights de Meta con `period=day`**: el valor cubre las 24 h que TERMINAN
   en `end_time`, y `end_time` cae de madrugada del día siguiente. Usar su fecha
   tal cual desplaza la serie un día. Ver `meta_organico._fecha_de_periodo()`.

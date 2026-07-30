@@ -495,6 +495,7 @@ METRICAS_POST = {
     "comentarios": "Comentarios",
     "compartidos": "Compartidos",
     "clics": "Clics",
+    "visualizaciones_totales": "Visualiz. totales",
     "guardados": "Guardados",
 }
 
@@ -545,6 +546,16 @@ SOPORTE_METRICA_POST: dict[str, set[str]] = {
     # reales el 30-jul-2026. Es la métrica de orgánico más cercana a intención:
     # mide quién quiso saber más, no quién pasó el dedo.
     "clics": {"Facebook", "LinkedIn"},
+    # Contador PÚBLICO acumulado del vídeo, el mismo que se ve en YouTube
+    # Studio. Solo YouTube lo da como número aparte: en Instagram y Facebook las
+    # métricas por publicación YA son acumuladas desde que se publicó, así que
+    # una columna «totales» duplicaría la que ya hay.
+    #
+    # Existe porque Studio y Analytics no siempre coinciden: verificado el
+    # 30-jul-2026, un vídeo con 1.203 visualizaciones en el contador público no
+    # aparecía en Analytics en ninguna ventana. Sin esta columna, ese vídeo se
+    # ve como «—» y parece que no lo vio nadie.
+    "visualizaciones_totales": {"YouTube"},
     "guardados": {"Instagram"},
 }
 

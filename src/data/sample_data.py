@@ -258,16 +258,37 @@ def hubspot_deals(desde, hasta) -> pd.DataFrame:
 # Si en el dashboard vieras un número en una casilla que debería estar a «—», la
 # regla se ha roto.
 #
-# Los volúmenes reflejan el perfil de Reversal: LinkedIn es la red fuerte (público
-# profesional sanitario), Instagram media, YouTube y Facebook pequeñas.
+# ⚠️ LOS VOLÚMENES SE CALIBRARON CONTRA LAS CUENTAS REALES el 30-jul-2026, y no
+# es un detalle cosmético.
+#
+# Antes asumían que LinkedIn era la red fuerte (4.200 seguidores, 2.400
+# visualizaciones al día). Los datos reales dijeron lo contrario: la grande es
+# Instagram, y las cuentas son jóvenes y pequeñas. Como LinkedIn es la única red
+# que sigue en ejemplo mientras se aprueba su API, esas cifras infladas
+# aplastaban a las tres reales en la tabla comparativa, en el gráfico de
+# evolución y en el ranking de publicaciones: 6.689 likes inventados frente a
+# los 138 reales de Instagram.
+#
+# Un dato de ejemplo desproporcionado no es un error inocuo en esta página: la
+# comparación entre redes ES el producto. Si vuelves a tocar estos números,
+# míralos primero contra `data/historico_social/` y mantenlos en el mismo orden
+# de magnitud.
+#
+# Referencia real (últimos 30 días, 30-jul-2026):
+#   Instagram  419 seguidores · 153.322 visualizaciones · 138 likes
+#   YouTube      3 seguidores ·   5.274 visualizaciones ·  38 likes
+#   Facebook    14 seguidores ·     193 visualizaciones ·   0 likes
 # --------------------------------------------------------------------------- #
 
-# base diaria de visualizaciones, seguidores, tasas de engagement por red
+# Base diaria por red: visualizaciones, seguidores acumulados, seguidores nuevos
+# al día, tasa de engagement, mensajes y publicaciones al mes.
 _PERFIL_SOCIAL = {
-    "LinkedIn":  dict(views=2400, followers=4200, seg=14, eng=0.045, msg=0),
-    "Instagram": dict(views=1800, followers=3100, seg=11, eng=0.038, msg=0),
-    "YouTube":   dict(views=520,  followers=880,  seg=4,  eng=0.030, msg=0),
-    "Facebook":  dict(views=430,  followers=1650, seg=2,  eng=0.018, msg=3),
+    # LinkedIn: página joven de público profesional. Poco volumen pero
+    # engagement alto, que es el patrón real de B2B.
+    "LinkedIn":  dict(views=95,   followers=140, seg=2,  eng=0.030, msg=0, posts_mes=10),
+    "Instagram": dict(views=5100, followers=420, seg=13, eng=0.002, msg=0, posts_mes=10),
+    "YouTube":   dict(views=180,  followers=5,   seg=1,  eng=0.008, msg=0, posts_mes=7),
+    "Facebook":  dict(views=7,    followers=14,  seg=1,  eng=0.010, msg=0, posts_mes=8),
 }
 
 
@@ -361,8 +382,12 @@ def social_posts(desde, hasta) -> pd.DataFrame:
     for red, pf in _PERFIL_SOCIAL.items():
         r = _rng("social-posts-" + red)
         catalogo = _TITULOS_SOCIAL[red]
-        # ~2 publicaciones por semana y red, mínimo 1 si el periodo es corto.
-        n_posts = max(1, int(len(fechas) / 7 * 2))
+        # Ritmo de publicación real de cada red, escalado al periodo. Antes eran
+        # 2 por semana para todas, lo que en 90 días generaba 25 publicaciones
+        # inventadas de LinkedIn compitiendo en el ranking con las 10 reales de
+        # Instagram. Nunca más publicaciones que títulos del catálogo.
+        n_posts = max(1, round(pf["posts_mes"] * len(fechas) / 30))
+        n_posts = min(n_posts, len(catalogo))
         for i in range(n_posts):
             titulo, tipo = catalogo[i % len(catalogo)]
             f = fechas[int(r.integers(0, len(fechas)))]
@@ -380,7 +405,12 @@ def social_posts(desde, hasta) -> pd.DataFrame:
                 miniatura="",
                 impresiones=int(views * r.uniform(1.05, 1.35)),
                 visualizaciones=views,
+                # Contador público acumulado: siempre >= las del periodo, porque
+                # cuenta desde que se publicó. Solo YouTube lo publica aparte;
+                # en las demás la regla de nulos lo anula al normalizar.
+                visualizaciones_totales=int(views * r.uniform(1.0, 1.6)),
                 likes=likes, comentarios=comentarios, compartidos=compartidos,
+                clics=int(inter * r.uniform(0.1, 0.5)),
                 guardados=int(inter * r.uniform(0.05, 0.25)),
             ))
     return pd.DataFrame(filas)

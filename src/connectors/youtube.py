@@ -238,6 +238,7 @@ def _api_posts(creds: dict, desde, hasta) -> pd.DataFrame:
             url=f"https://www.youtube.com/watch?v={vid}",
             miniatura=info.get("miniatura", ""),
             visualizaciones=v.get("views"),
+            visualizaciones_totales=info.get("visualizaciones_totales"),
             likes=v.get("likes"),
             comentarios=v.get("comments"),
             compartidos=v.get("shares"),
@@ -246,23 +247,32 @@ def _api_posts(creds: dict, desde, hasta) -> pd.DataFrame:
 
 
 def _detalles_videos(data, ids: list[str]) -> dict:
-    """{video_id: {titulo, fecha, miniatura, tipo}} vía Data API v3.
+    """{video_id: {titulo, fecha, miniatura, tipo, visualizaciones_totales}}.
 
     La API acepta como máximo 50 ids por llamada, así que se trocea.
+
+    `visualizaciones_totales` es el contador PÚBLICO del vídeo, acumulado desde
+    que se publicó — el mismo número que se ve en YouTube Studio y bajo el
+    reproductor. Es una tubería distinta de la de Analytics y a veces no
+    coinciden: comprobado el 30-jul-2026, un vídeo con 1.203 visualizaciones
+    aquí no aparecía en Analytics en ninguna ventana. Por eso se traen las dos.
     """
     out: dict[str, dict] = {}
     for i in range(0, len(ids), 50):
         lote = ids[i:i + 50]
         try:
             resp = data.videos().list(
-                part="snippet,contentDetails", id=",".join(lote), maxResults=50,
+                part="snippet,contentDetails,statistics",
+                id=",".join(lote), maxResults=50,
             ).execute()
         except Exception:  # noqa: BLE001
             continue
         for item in resp.get("items", []):
             sn = item.get("snippet", {})
             dur = item.get("contentDetails", {}).get("duration", "")
+            vistas = (item.get("statistics", {}) or {}).get("viewCount")
             out[item["id"]] = dict(
+                visualizaciones_totales=int(vistas) if vistas is not None else None,
                 titulo=sn.get("title", ""),
                 fecha=(sn.get("publishedAt") or "")[:10],
                 miniatura=(sn.get("thumbnails", {}).get("medium", {}).get("url", "")),

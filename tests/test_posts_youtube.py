@@ -79,3 +79,40 @@ def test_sin_metricas_la_casilla_queda_nula_no_a_cero(monkeypatch):
     por_id = df.set_index("post_id")["visualizaciones"]
     assert por_id["con_datos"] == 100
     assert por_id["sin_datos"] is None or str(por_id["sin_datos"]) in ("nan", "<NA>", "None")
+
+
+def test_las_visualizaciones_totales_solo_las_publica_youtube():
+    """El contador público acumulado es una métrica DISTINTA de las del periodo.
+
+    Existe porque Studio y Analytics no siempre coinciden: verificado el
+    30-jul-2026, un vídeo con 1.203 visualizaciones en el contador público no
+    aparecía en Analytics en ninguna ventana. En Instagram y Facebook las
+    métricas por publicación ya son acumuladas, así que allí duplicaría.
+    """
+    from src import config
+
+    assert config.soporta_metrica("visualizaciones_totales", "YouTube", "post")
+    for red in ("Instagram", "Facebook", "LinkedIn"):
+        assert not config.soporta_metrica("visualizaciones_totales", red, "post")
+
+
+def test_las_totales_sobreviven_aunque_analytics_no_reporte(monkeypatch):
+    """El caso real: Analytics no devuelve el vídeo, pero el contador público
+    sí. Sin esta columna se vería «—» y parecería que no lo vio nadie."""
+    from datetime import date as _d
+
+    class _An:
+        def reports(self):
+            return _Lista({"columnHeaders": [], "rows": []})
+
+    data = _Data(_CANAL, _items(("mudo", "2026-07-23")))
+    monkeypatch.setattr(yt, "_servicios", lambda c: (_An(), data))
+    monkeypatch.setattr(yt, "_canal", lambda c: "UC1")
+    monkeypatch.setattr(yt, "_detalles_videos", lambda d, ids: {
+        "mudo": {"titulo": "t", "fecha": "2026-07-23", "tipo": "Short",
+                 "miniatura": "", "visualizaciones_totales": 1203}})
+
+    df = yt._api_posts({}, _d(2026, 7, 1), _d(2026, 7, 30))
+    fila = df.iloc[0]
+    assert fila["visualizaciones_totales"] == 1203
+    assert fila["visualizaciones"] is None

@@ -239,6 +239,20 @@ def _tipo_por_duracion(iso: str) -> str:
 _GENERO_YT = {"female": "F", "male": "M", "user_specified": "U", "gender_other": "U"}
 
 
+def _tramo_edad_yt(tramo: str) -> str:
+    """Normaliza un tramo de edad de la API al formato de Instagram.
+
+    La API devuelve «age45-54» (prefijo a quitar) pero el tramo abierto llega
+    como «age65-» —con guion final, sin el «+»—, así que quitar solo el
+    prefijo deja "65-", que NO coincide con el "65+" de Instagram. Se
+    normaliza ese caso explícitamente.
+    """
+    etiqueta = str(tramo).removeprefix("age")
+    if etiqueta.endswith("-"):
+        etiqueta = etiqueta[:-1] + "+"
+    return etiqueta
+
+
 def _api_demografia(creds: dict, desde, hasta) -> pd.DataFrame:
     """Demografía de la audiencia de YouTube, en el esquema largo.
 
@@ -248,8 +262,14 @@ def _api_demografia(creds: dict, desde, hasta) -> pd.DataFrame:
     lo marca con la unidad `pct_visualizaciones` y la UI lo escribe en el
     bloque.
 
-    Los tramos vienen como «age45-54»; se les quita el prefijo para que
+    Los tramos vienen como «age45-54»; se les quita el prefijo (ver
+    `_tramo_edad_yt` para el caso especial del tramo abierto "65-") para que
     coincidan con los de Instagram y puedan compartir eje (nunca gráfico).
+
+    País llega de la API como visualizaciones ABSOLUTAS, no como porcentaje:
+    se convierte aquí a % sobre el total de vistas del periodo para que la
+    unidad `pct_visualizaciones` sea cierta en TODAS las filas de YouTube, país
+    incluido, y quede en la misma magnitud que edad y género.
     """
     analytics, _ = _servicios(creds)
     canal = _canal(creds)
@@ -262,7 +282,7 @@ def _api_demografia(creds: dict, desde, hasta) -> pd.DataFrame:
             **base, metrics="viewerPercentage", dimensions="ageGroup,gender").execute()
         por_edad: dict[str, float] = {}
         for tramo, genero, pct in (fila[:3] for fila in r.get("rows", [])):
-            etiqueta = str(tramo).removeprefix("age")
+            etiqueta = _tramo_edad_yt(tramo)
             por_edad[etiqueta] = por_edad.get(etiqueta, 0.0) + float(pct)
             filas.append({"fecha": hasta, "red": RED, "dimension": "genero",
                           "categoria": _GENERO_YT.get(genero, "U"), "valor": pct})
@@ -275,9 +295,16 @@ def _api_demografia(creds: dict, desde, hasta) -> pd.DataFrame:
     try:
         r = analytics.reports().query(
             **base, metrics="views", dimensions="country").execute()
-        for pais, vistas in (fila[:2] for fila in r.get("rows", [])):
-            filas.append({"fecha": hasta, "red": RED, "dimension": "pais",
-                          "categoria": pais, "valor": vistas})
+        por_pais = [(pais, float(vistas))
+                    for pais, vistas in (fila[:2] for fila in r.get("rows", []))]
+        total = sum(vistas for _, vistas in por_pais)
+        # Sin vistas en el periodo no hay proporción que calcular: la
+        # dimensión no aparece (nulo != cero), no se inventa un 0 ni se divide.
+        if total > 0:
+            for pais, vistas in por_pais:
+                filas.append({"fecha": hasta, "red": RED, "dimension": "pais",
+                              "categoria": pais,
+                              "valor": round(vistas / total * 100, 2)})
     except Exception:  # noqa: BLE001
         pass
 

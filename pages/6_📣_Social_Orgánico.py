@@ -33,6 +33,24 @@ ui.aviso_origenes(
 ui.cabecera("Social orgánico",
             f"YouTube · Facebook · Instagram · LinkedIn — solo alcance no pagado · {etq}")
 
+# ⚠️ Aviso de mezcla. Si unas redes traen datos reales y otras siguen con
+# ejemplo, los gráficos y el ranking comparan cifras inventadas con cifras
+# ciertas, y la de ejemplo puede salir la primera. En una página cuyo objetivo
+# es decidir en qué red invertir, eso es peor que no enseñar nada: el badge del
+# sidebar lo dice, pero nadie mira el sidebar antes que el gráfico.
+_ejemplo = [r for r, o in datos.origenes.items() if o == "sample"]
+_reales = [r for r, o in datos.origenes.items() if o != "sample"]
+if _ejemplo and _reales:
+    st.warning(
+        f"**{', '.join(_ejemplo)}** {'sigue' if len(_ejemplo) == 1 else 'siguen'} "
+        f"con **datos de ejemplo**, mientras que {', '.join(_reales)} "
+        f"{'trae' if len(_reales) == 1 else 'traen'} datos reales. "
+        "Las comparativas entre redes y el ranking de publicaciones mezclan "
+        "unos con otros: no uses esta página para comparar "
+        f"{'esa red' if len(_ejemplo) == 1 else 'esas redes'} con el resto "
+        "hasta que tenga sus credenciales."
+    )
+
 diario = datos.diario
 posts = datos.posts
 

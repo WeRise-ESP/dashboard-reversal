@@ -94,9 +94,17 @@ def resumen_campana(df_ads: pd.DataFrame) -> pd.DataFrame:
         )
     )
     # El estado es atributo de la campaña (igual en todas sus filas diarias).
+    #
+    # La columna se crea SIEMPRE, aunque el origen no la traiga: las páginas de
+    # Ads la seleccionan por nombre y sin ella revientan con KeyError en vez de
+    # degradar. Pasa con cachés antiguas, grabadas antes de que el conector
+    # empezara a traer el Estado — justo cuando más falta hace que la página
+    # aguante, porque si se está leyendo la caché es que la API ha fallado.
     if "estado" in df_ads:
         est = df_ads.groupby("campana")["estado"].first()
         g["estado"] = g["campana"].map(est).fillna("—")
+    else:
+        g["estado"] = "—"
     g["programa"] = g["campana"].map(config.programa_por_campana)
     g["ctr"] = g.apply(lambda r: _safe_div(r["clics"], r["impresiones"]), axis=1)
     g["cpc"] = g.apply(lambda r: _safe_div(r["coste"], r["clics"]), axis=1)

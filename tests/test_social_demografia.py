@@ -75,3 +75,33 @@ def test_ultima_foto_devuelve_vacio_si_todas_las_fechas_son_invalidas():
     f = sd.ultima_foto(d, "Instagram", date(2026, 7, 30))
     assert len(f) == 0
     assert list(f.columns) == sd.COLUMNAS
+
+
+def test_normalizar_mantiene_dtype_fecha_coherente():
+    """La columna fecha siempre debe ser object, sin importar si todas las fechas
+    son válidas, algunas son nulas, o todas son inválidas. Esto evita TypeError
+    en comparaciones posterior en ultima_foto."""
+    # Caso 1: todas las fechas válidas
+    d1 = sd.normalizar(pd.DataFrame([
+        {"fecha": "2026-07-30", "red": "Instagram", "dimension": "edad",
+         "categoria": "45-54", "valor": 100},
+    ]))
+    assert d1["fecha"].dtype == object
+
+    # Caso 2: algunas fechas nulas
+    d2 = sd.normalizar(pd.DataFrame([
+        {"fecha": "2026-07-30", "red": "Instagram", "dimension": "edad",
+         "categoria": "45-54", "valor": 100},
+        {"fecha": None, "red": "YouTube", "dimension": "edad",
+         "categoria": "45-54", "valor": 50},
+    ]))
+    assert d2["fecha"].dtype == object
+
+    # Caso 3: todas las fechas inválidas
+    d3 = sd.normalizar(pd.DataFrame([
+        {"fecha": "INVALIDA", "red": "Instagram", "dimension": "edad",
+         "categoria": "45-54", "valor": 100},
+        {"fecha": "OTRA_INVALIDA", "red": "YouTube", "dimension": "edad",
+         "categoria": "45-54", "valor": 50},
+    ]))
+    assert d3["fecha"].dtype == object

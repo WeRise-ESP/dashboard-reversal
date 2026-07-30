@@ -64,7 +64,7 @@ def normalizar(df: pd.DataFrame) -> pd.DataFrame:
             d[c] = pd.NA
     d = d[COLUMNAS]
 
-    d["fecha"] = pd.to_datetime(d["fecha"], errors="coerce").dt.date
+    d["fecha"] = pd.to_datetime(d["fecha"], errors="coerce").dt.date.astype(object)
     d["valor"] = pd.to_numeric(d["valor"], errors="coerce")
     d["unidad"] = d["red"].map(UNIDAD_POR_RED)
 
@@ -79,13 +79,8 @@ def ultima_foto(df: pd.DataFrame, red: str, hasta: date) -> pd.DataFrame:
     """
     if df is None or df.empty:
         return esquema_vacio()
-    try:
-        d = df[(df["red"] == red) & df["fecha"].notna()]
-        d = d[d["fecha"] <= hasta]
-        if d.empty:
-            return esquema_vacio()
-        return d[d["fecha"] == d["fecha"].max()].reset_index(drop=True)
-    except (TypeError, pd.errors.InvalidIndexError):
-        # Si todas las fechas son inválidas, normalizar deja la columna como datetime64
-        # en lugar de date, causando TypeError en la comparación
+    d = df[(df["red"] == red) & df["fecha"].notna()]
+    d = d[d["fecha"] <= hasta]
+    if d.empty:
         return esquema_vacio()
+    return d[d["fecha"] == d["fecha"].max()].reset_index(drop=True)

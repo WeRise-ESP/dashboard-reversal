@@ -149,32 +149,87 @@ def _suscriptores(data, canal: str) -> int | None:
         return None
 
 
+def _videos_publicados(data, canal: str, desde, hasta) -> list[str]:
+    """IDs de los vídeos PUBLICADOS en el periodo, según la Data API.
+
+    La lista de vídeos sale de aquí y no de Analytics a propósito. Analytics
+    solo devuelve los que tuvieron visualizaciones en el rango, lo que produce
+    dos errores a la vez: se cuela un vídeo de hace meses porque sigue sumando
+    vistas, y desaparece uno recién subido porque YouTube aún no ha procesado
+    sus métricas. Comprobado contra el canal real el 30-jul-2026: la tabla
+    mostraba dos vídeos de junio y se perdía el de ese mismo día.
+
+    Publicado-en-el-periodo es además lo que significa «publicaciones» en las
+    otras tres redes, así que las pestañas dicen lo mismo.
+    """
+    try:
+        info = data.channels().list(part="contentDetails", id=canal).execute()
+        items = info.get("items", [])
+        if not items:
+            return []
+        subidas = items[0]["contentDetails"]["relatedPlaylists"]["uploads"]
+    except Exception:  # noqa: BLE001
+        return []
+
+    desde_s, hasta_s = str(desde), str(hasta)
+    ids, pagina = [], None
+    while True:
+        try:
+            resp = data.playlistItems().list(
+                part="contentDetails", playlistId=subidas,
+                maxResults=50, pageToken=pagina).execute()
+        except Exception:  # noqa: BLE001
+            break
+        for it in resp.get("items", []):
+            det = it.get("contentDetails", {})
+            fecha = (det.get("videoPublishedAt") or "")[:10]
+            # Sin fecha de publicación = vídeo borrado o privado: la entrada
+            # sigue en la lista de subidas pero ya no existe para nadie.
+            if fecha and desde_s <= fecha <= hasta_s:
+                ids.append(det.get("videoId"))
+        pagina = resp.get("nextPageToken")
+        if not pagina:
+            break
+    return [v for v in ids if v]
+
+
 def _api_posts(creds: dict, desde, hasta) -> pd.DataFrame:
     analytics, data = _servicios(creds)
     canal = _canal(creds)
-    ids = f"channel=={canal}" if canal else "channel==MINE"
 
-    resp = analytics.reports().query(
-        ids=ids, startDate=str(desde), endDate=str(hasta),
-        metrics=_METRICAS_VIDEO, dimensions="video",
-        sort="-views", maxResults=200,
-    ).execute()
-
-    cols = [c["name"] for c in resp.get("columnHeaders", [])]
-    metricas = {}
-    for fila in resp.get("rows", []):
-        v = dict(zip(cols, fila))
-        vid = v.get("video")
-        if vid:
-            metricas[vid] = v
-
-    if not metricas:
+    ids = _videos_publicados(data, canal, desde, hasta)
+    if not ids:
         return pd.DataFrame()
 
-    meta = _detalles_videos(data, list(metricas))
+    # Métricas del periodo. Un vídeo puede no aparecer aquí —recién subido, o
+    # sin una sola visualización— y eso NO es un cero: es que todavía no hay
+    # dato. Se queda a nulo, como manda la regla del proyecto.
+    metricas = {}
+    try:
+        resp = analytics.reports().query(
+            ids=f"channel=={canal}" if canal else "channel==MINE",
+            startDate=str(desde), endDate=str(hasta),
+            metrics=_METRICAS_VIDEO, dimensions="video",
+            sort="-views", maxResults=200,
+        ).execute()
+        cols = [c["name"] for c in resp.get("columnHeaders", [])]
+        for fila in resp.get("rows", []):
+            v = dict(zip(cols, fila))
+            if v.get("video"):
+                metricas[v["video"]] = v
+    except Exception:  # noqa: BLE001
+        pass
+
+    # `videos().list` no devuelve los borrados ni los privados, así que lo que
+    # falte aquí se descarta: no tiene sentido listar un vídeo que ya no existe.
+    meta = _detalles_videos(data, ids)
+
     filas = []
-    for vid, v in metricas.items():
-        info = meta.get(vid, {})
+    for vid in ids:
+        info = meta.get(vid)
+        if info is None:
+            continue
+        v = metricas.get(vid, {})
         filas.append(dict(
             red=RED, post_id=vid,
             fecha=info.get("fecha"),

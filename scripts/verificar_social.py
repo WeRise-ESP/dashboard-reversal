@@ -131,7 +131,7 @@ def verificar_meta() -> Informe:
                     "Añádelos al System User y vuelve a generar el token. "
                     "OJO: el token de [meta_ads] NO sirve, solo tiene ads_*.")
         else:
-            inf.add(OK, "Están los 5 permisos obligatorios")
+            inf.add(OK, f"Están los {len(_SCOPES_META)} permisos obligatorios")
         if _SCOPE_MENSAJES not in concedidos:
             inf.add(AVISO, f"Sin {_SCOPE_MENSAJES}: la métrica «mensajes» saldrá nula",
                     "Es la única métrica que se pierde; el resto funciona igual.")

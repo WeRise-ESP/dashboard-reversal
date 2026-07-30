@@ -432,15 +432,48 @@ def _seguidores_pagina(version: str, page_id: str, token: str) -> int | None:
         return None
 
 
+# media_type de Graph -> formato del esquema. Mismo vocabulario que `_TIPO_IG`
+# para que el bloque «rendimiento por formato» sea comparable entre redes.
+_TIPO_FB = {"video": "Vídeo", "photo": "Imagen", "album": "Carrusel",
+            "link": "Enlace", "share": "Enlace", "status": "Texto"}
+
+
+def _tipo_post_fb(p: dict) -> str:
+    """Formato de una publicación de Facebook.
+
+    Los reels se distinguen por el permalink (`facebook.com/reel/…`), no por
+    `media_type`: Graph los devuelve como `video` igual que una subida normal, y
+    mezclarlos haría inútil el bloque de rendimiento por formato justo en la red
+    donde ahora mismo se publica casi solo en reel.
+    """
+    if "/reel/" in (p.get("permalink_url") or ""):
+        return "Reel"
+    adjuntos = (p.get("attachments") or {}).get("data") or []
+    media = (adjuntos[0].get("media_type") if adjuntos else "") or ""
+    return _TIPO_FB.get(media.lower(), "Publicación")
+
+
 def _api_fb_posts(creds: dict, desde, hasta) -> pd.DataFrame:
     version = _version(creds)
     page_id, token = _token_pagina(creds)
 
     campos = ("id,message,story,created_time,permalink_url,full_picture,"
+              "attachments{media_type},"
               "shares,comments.summary(true).limit(0),"
               "reactions.summary(true).limit(0)")
+    # ⚠️ `until` es EXCLUSIVO: Graph API lo interpreta como el comienzo de ese
+    # día, así que pasar `until=hasta` descarta TODO lo publicado ese día — el
+    # último del rango, que casi siempre es hoy. Verificado contra la Página
+    # real el 30-jul-2026: con `until=2026-07-30` devolvía 0 publicaciones y con
+    # `until=2026-07-31`, las 6 de esa mañana.
+    #
+    # El fallo es especialmente traicionero porque se cura solo: al día
+    # siguiente esas publicaciones ya caen dentro del rango y aparecen, así que
+    # parece un retraso de Meta en lugar de un error nuestro.
     datos = _get(version, f"{page_id}/published_posts", token, {
-        "fields": campos, "since": str(desde), "until": str(hasta), "limit": 100,
+        "fields": campos, "since": str(desde),
+        "until": str(pd.Timestamp(hasta).date() + timedelta(days=1)),
+        "limit": 100,
     })
 
     filas = []
@@ -451,7 +484,7 @@ def _api_fb_posts(creds: dict, desde, hasta) -> pd.DataFrame:
         filas.append(dict(
             red=RED_FB, post_id=pid,
             fecha=(p.get("created_time") or "")[:10],
-            tipo="Publicación",
+            tipo=_tipo_post_fb(p),
             titulo=(texto[:120] or "(sin texto)"),
             url=p.get("permalink_url", ""),
             miniatura=p.get("full_picture", ""),

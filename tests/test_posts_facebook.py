@@ -67,3 +67,59 @@ def test_cero_clics_si_se_conserva(monkeypatch):
         ("post_clicks", 0)))
     out = m._insights_post_fb("v21.0", "p1", "tok")
     assert out["clics"] == 0
+
+
+def test_until_se_pide_con_un_dia_de_mas(monkeypatch):
+    """`until` de Graph API es EXCLUSIVO: apunta al comienzo de ese día.
+
+    Pasar `until=hasta` descarta todo lo publicado el último día del rango —que
+    casi siempre es hoy—, y el fallo se cura solo al día siguiente, así que
+    parece un retraso de Meta en vez de un error nuestro. Verificado contra la
+    Página real el 30-jul-2026.
+    """
+    from datetime import date
+
+    pedidos = {}
+
+    def _get(version, ruta, token, params=None):
+        if ruta.endswith("/published_posts"):
+            pedidos.update(params or {})
+            return {"data": []}
+        return {"data": []}
+
+    monkeypatch.setattr(m, "_token_pagina", lambda creds: ("PAGE1", "tok"))
+    monkeypatch.setattr(m, "_get", _get)
+
+    m._api_fb_posts({}, date(2026, 7, 1), date(2026, 7, 30))
+
+    assert pedidos["since"] == "2026-07-01"
+    assert pedidos["until"] == "2026-07-31", (
+        "until debe ir un día por delante de `hasta`, o se pierde el último día"
+    )
+
+
+def test_los_reels_se_distinguen_de_los_videos_normales():
+    """Graph devuelve `media_type=video` tanto para un reel como para una subida
+    normal; lo que los separa es el permalink. Sin esa distinción, el bloque de
+    rendimiento por formato es inútil justo en la red donde hoy se publica casi
+    solo en reel."""
+    reel = {"permalink_url": "https://www.facebook.com/reel/1361733375923350/",
+            "attachments": {"data": [{"media_type": "video"}]}}
+    video = {"permalink_url": "https://www.facebook.com/1234/posts/5678",
+             "attachments": {"data": [{"media_type": "video"}]}}
+    assert m._tipo_post_fb(reel) == "Reel"
+    assert m._tipo_post_fb(video) == "Vídeo"
+
+
+def test_el_formato_sale_del_media_type():
+    def _p(media):
+        return {"permalink_url": "https://www.facebook.com/1/posts/2",
+                "attachments": {"data": [{"media_type": media}]}}
+    assert m._tipo_post_fb(_p("photo")) == "Imagen"
+    assert m._tipo_post_fb(_p("album")) == "Carrusel"
+    assert m._tipo_post_fb(_p("link")) == "Enlace"
+
+
+def test_sin_adjuntos_no_revienta():
+    assert m._tipo_post_fb({}) == "Publicación"
+    assert m._tipo_post_fb({"attachments": {"data": []}}) == "Publicación"

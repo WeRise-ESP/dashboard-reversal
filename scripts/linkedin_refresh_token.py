@@ -121,9 +121,17 @@ def main() -> int:
     if "error" in datos:
         print(f"\n✗ LinkedIn ha rechazado la autorización: "
               f"{datos.get('error')} — {datos.get('error_description', '')}")
-        if datos.get("error") == "unauthorized_scope_error":
-            print("  → La app todavía no tiene concedida la Community "
-                  "Management API, o no incluye estos scopes.")
+        # LinkedIn usa los dos nombres para lo mismo según el caso, y ninguno
+        # dice lo que de verdad pasa: que el producto no está concedido.
+        if datos.get("error") in ("invalid_scope_error", "unauthorized_scope_error"):
+            print(f"  Scopes pedidos: {args.scopes}")
+            print("  → La app NO tiene concedida la Community Management API.")
+            print("    Pestaña Products → Community Management API → Request "
+                  "access. Hasta que no aparezca concedida, estos scopes no "
+                  "existen para la app y el OAuth falla aquí siempre.")
+            print("    ⚠️ No añadas ningún otro producto para «probar»: "
+                  "Community Management tiene que ser el ÚNICO, y si metes "
+                  "otro al lado la app queda inservible.")
         return 1
     if datos.get("state") != estado:
         print("\n✗ El `state` no coincide: descarto la respuesta por seguridad.")

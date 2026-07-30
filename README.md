@@ -173,11 +173,25 @@ python scripts/snapshot_social.py             # últimos 30 días
 python scripts/snapshot_social.py --dias 730  # relleno inicial hacia atrás
 ```
 
-Cron, **el mismo día que llegue la primera credencial**:
+**El cron ya está instalado** (30-jul-2026), y usa el envoltorio
+`scripts/cron_social.sh`, que además de capturar **commitea y sube** el
+histórico — sin ese último paso producción se queda congelada mientras el Mac
+sigue acumulando:
 
-```bash
-0 4 * * * cd /ruta/a/Dashboard && .venv/bin/python scripts/snapshot_social.py
 ```
+0 4 * * * /Users/misael/Documents/Reversal/Dashboard/scripts/cron_social.sh
+```
+
+| | |
+|---|---|
+| Ver qué hizo anoche | `tail -40 data/cron_social.log` |
+| Ejecutarlo a mano | `./scripts/cron_social.sh` |
+| Sin subir a producción | `PUSH=0 ./scripts/cron_social.sh` |
+| Desactivarlo | `crontab -e` y comentar la línea |
+
+Solo toca `data/historico_social/`: nunca commitea código ni caché, así que
+convive con trabajo sin guardar. Si la captura falla no commitea nada; si el
+push falla, deja el commit en local y lo dice en el log.
 
 Salta las redes sin credencial sin tocar su histórico, así que se puede arrancar
 con una sola red configurada. ⚠️ Streamlit Cloud no ejecuta cron: el histórico

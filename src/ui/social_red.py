@@ -145,6 +145,17 @@ def _enlace(titulo, url) -> str:
     return texto
 
 
+def _texto_seguro(v):
+    """Escapa un valor para HTML, dejando pasar los nulos intactos.
+
+    `ui.tabla` inyecta HTML sin escapar, así que cualquier texto que venga de
+    datos (no de una plantilla fija de la app) tiene que pasar por aquí antes
+    de llegar a ella. Un nulo se deja tal cual para que `ui.tabla` lo siga
+    pintando como celda vacía en vez de convertirlo en el texto "nan"/"NaT".
+    """
+    return v if pd.isna(v) else html.escape(str(v))
+
+
 def filas_publicaciones(posts: pd.DataFrame, red: str) -> pd.DataFrame:
     """Publicaciones de una red listas para `ui.tabla`, con el texto escapado.
 
@@ -152,11 +163,18 @@ def filas_publicaciones(posts: pd.DataFrame, red: str) -> pd.DataFrame:
     SIEMPRE `ui.tabla` (que lo pinta con `st.markdown(unsafe_allow_html=True)`),
     nunca `st.dataframe` — ese no interpreta HTML y lo enseñaría crudo tal
     cual, con las entidades de `html.escape` incluidas.
+
+    `fecha` y `tipo` viajan por el mismo camino y, aunque hoy los cuatro
+    conectores fijan `tipo` desde mapas cerrados, `data/import_social/*.csv`
+    es un nivel de la cascada (`social_base.resolver`) cuyo contenido llega
+    intacto hasta aquí: hay que escaparlos igual que el título, no solo él.
     """
     d = posts[posts["red"] == red].copy()
     if d.empty:
         return d
     d["titulo"] = [_enlace(t, u) for t, u in zip(d["titulo"], d["url"])]
+    d["tipo"] = [_texto_seguro(t) for t in d["tipo"]]
+    d["fecha"] = [_texto_seguro(f) for f in d["fecha"]]
     return d
 
 
@@ -230,7 +248,7 @@ def bloque_contenido(posts: pd.DataFrame, red: str) -> None:
     if not formatos.empty:
         st.markdown("**Rendimiento por formato**")
         ui.tabla(pd.DataFrame([{
-            "tipo": f["tipo"], "n": num_o_guion(f["n"]),
+            "tipo": _texto_seguro(f["tipo"]), "n": num_o_guion(f["n"]),
             "vis": num_o_guion(f["visualizaciones_media"]),
             "eng": pct_o_guion(f["engagement_medio"]),
         } for _, f in formatos.iterrows()]), [

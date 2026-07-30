@@ -76,6 +76,20 @@ def test_el_texto_de_las_publicaciones_va_escapado():
     assert "&lt;script&gt;" in filas.iloc[0]["titulo"]
 
 
+def test_el_tipo_va_escapado():
+    """`tipo` llega sin pasar por un mapa cerrado cuando viene de
+    `data/import_social/*.csv` (un nivel documentado de la cascada) y `ui.tabla`
+    inyecta HTML sin escapar: un `tipo` hostil no debe ejecutarse."""
+    p = social.normalizar_posts(pd.DataFrame([{
+        "red": "Instagram", "post_id": "1",
+        "tipo": '<img src=x onerror="alert(1)">',
+        "titulo": "hola", "url": "https://x.test",
+        "visualizaciones": 10, "likes": 1}]))
+    filas = sr.filas_publicaciones(p, "Instagram")
+    assert "<img" not in filas.iloc[0]["tipo"]
+    assert "&lt;img" in filas.iloc[0]["tipo"]
+
+
 def test_la_url_no_http_no_se_convierte_en_enlace():
     p = social.normalizar_posts(pd.DataFrame([{
         "red": "Instagram", "post_id": "1", "tipo": "Reel",

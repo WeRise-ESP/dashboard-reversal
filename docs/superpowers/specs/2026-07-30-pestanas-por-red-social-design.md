@@ -72,16 +72,17 @@ código.
 | Likes · comentarios · compartidos | ✅ | ✅ | ✅ | ✅ |
 | Guardados | ✅ | ❌ | ❌ | ❌ |
 | **Clics** | ❌ | ❌ | ✅ `post_clicks` | ✅ |
-| **Reacciones por tipo** | ❌ | ❌ | ✅ `post_reactions_by_type_total` | ❌ |
+| **Reacciones por tipo** | ❌ | ❌ | ⏸️ existe, aplazado | ❌ |
 
 Dos métricas nuevas que hay que añadir al esquema de publicaciones, ambas
 verificadas contra la Página real:
 
 - **`clics`** — la publican Facebook y LinkedIn. Es la más cercana a intención
   real que da el orgánico: mide quién quiso saber más, no quién pasó el dedo.
-- **`reacciones_por_tipo`** — solo Facebook. No es un número, es un desglose
-  (me gusta / me encanta / me sorprende / me entristece / me enfada). Va en su
-  pestaña como bloque propio, no en la tabla comparativa entre redes.
+- **`reacciones_por_tipo`** — solo Facebook. Existe y responde, pero devuelve un
+  DICCIONARIO, no un número, y el esquema de publicaciones es numérico.
+  **Aplazado** (ver Fuera de alcance): con 0 reacciones en toda la Página, tocar
+  el esquema no compensa todavía.
 
 Las publicaciones estáticas de Facebook se quedan sin visualizaciones —la API no
 las da— así que su casilla va a **nulo**, no a cero. Las de vídeo y reels sí las
@@ -149,16 +150,16 @@ no se va a cumplir.
   El día que la mayoría de sus publicaciones sean vídeo, se puede reevaluar;
   el criterio se elige en un solo sitio para que ese cambio sea de una línea.
 
-- **Listado completo**, ordenable, con **todas** las métricas que esa red
-  publica de cada publicación: fecha, formato, título enlazado al original,
-  miniatura, y sus métricas. Es la vista de trabajo: la que se mira para
-  encontrar una publicación concreta, no para sacar una conclusión.
-
-- **Bloques propios de cada red**, cuando su API da algo que las demás no:
-  guardados en Instagram, clics en Facebook y LinkedIn, desglose de reacciones
-  en Facebook. Van al final de la sección, después de lo común.
 - **Rendimiento por formato**: Reel vs Carrusel vs Imagen · Short vs Vídeo.
   Es el bloque que responde «qué publico la semana que viene».
+
+- **Listado completo**, ordenable, con **todas** las métricas que esa red
+  publica de cada publicación: fecha, formato, título enlazado al original y
+  sus métricas. Es la vista de trabajo: la que se mira para encontrar una
+  publicación concreta, no para sacar una conclusión. Incluye las métricas que
+  solo tiene esa red — guardados en Instagram, clics en Facebook y LinkedIn—,
+  porque `config.SOPORTE_METRICA_POST` ya decide cuáles le corresponden.
+
 **Umbral de muestra:** el bloque indica siempre sobre cuántas publicaciones se
 calcula. Con menos de **6 publicaciones** en el periodo no se muestra el Bottom 3
 —con 2 publicaciones, «la peor» es la segunda— y se dice por qué. El Top se
@@ -285,3 +286,7 @@ Las que ya gobiernan la página, extendidas a lo nuevo:
   cuando haya meses que comparar.
 - **Demografía de Facebook** — no existe.
 - **Edad y género de LinkedIn** — no existen.
+- **Desglose de reacciones de Facebook** — `post_reactions_by_type_total`
+  funciona, pero es un diccionario y el esquema de publicaciones es numérico.
+  Cuando la Página acumule reacciones de verdad, se decide si merece una
+  columna propia o un bloque aparte.

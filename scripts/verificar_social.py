@@ -133,37 +133,47 @@ def verificar_meta() -> Informe:
 
     try:
         page_id, page_token = meta_organico._token_pagina(creds)
-        propio = page_token != token
-        inf.add(OK, f"Página accesible: {page_id}"
-                    + (" (token de Página obtenido)" if propio else " (token ya es de Página)"))
+        tipo = meta_organico._tipo_de_token(version, page_token)
+        inf.add(OK, f"Token de Página obtenido para {page_id} (tipo {tipo or '?'})")
     except Exception as e:  # noqa: BLE001
-        inf.add(FALLO, f"No se puede acceder a la Página {page_id}: {e}",
-                "Asigna la Página al System User en Business Settings → "
-                "System Users → Assign Assets.")
-        return inf
+        inf.add(FALLO, f"No hay token de Página: {e}",
+                "Page Insights EXIGE token de Página; el de System User no vale "
+                "(error #190). Sin él, TODAS las métricas de Facebook fallan y "
+                "los errores despistan: Meta dice «not a valid insights metric» "
+                "aunque el nombre sea correcto.\n"
+                "Instagram no depende de esto y puede seguir funcionando.")
+        page_token = None
 
-    try:
-        info = meta_organico._get(version, page_id, page_token,
-                                  {"fields": "name,followers_count"})
-        inf.add(OK, f"Página = «{info.get('name')}» · "
-                    f"{info.get('followers_count', '?')} seguidores",
-                "Confirma que es la de Reversal Institute.")
-    except Exception as e:  # noqa: BLE001
-        inf.add(AVISO, f"No se ha podido leer el nombre de la Página: {e}")
+    # Sin token de Página no se prueba nada de Facebook: los errores que
+    # devuelve Meta con el token equivocado apuntan a las métricas y esconden
+    # la causa real, que ya está reportada arriba.
+    if page_token:
+        try:
+            info = meta_organico._get(version, page_id, page_token,
+                                      {"fields": "name,followers_count"})
+            inf.add(OK, f"Página = «{info.get('name')}» · "
+                        f"{info.get('followers_count', '?')} seguidores",
+                    "Confirma que es la de Reversal Institute.")
+        except Exception as e:  # noqa: BLE001
+            inf.add(AVISO, f"No se ha podido leer el nombre de la Página: {e}")
 
-    # --- Qué nombres de métrica acepta esta Página ------------------------- #
-    inf.add(INFO, "Probando los nombres de métrica de Page Insights…")
-    _probar_metricas(inf, version, page_id, page_token,
-                     meta_organico._MAPA_FB_DIA, "Facebook")
+        inf.add(INFO, "Probando los nombres de métrica de Page Insights…")
+        _probar_metricas(inf, version, page_id, page_token,
+                         meta_organico._MAPA_FB_DIA, "Facebook")
+    else:
+        inf.add(INFO, "Facebook: métricas sin probar",
+                "No tiene sentido hasta que haya token de Página.")
 
     # --- Instagram --------------------------------------------------------- #
+    # Instagram va con el token que corresponda: la IG Graph API acepta el de
+    # System User, así que no depende de que Facebook funcione.
     try:
-        ig = meta_organico._ig_user_id(creds, page_id, page_token)
-        datos = meta_organico._get(version, ig, page_token,
+        ig, token_ig = meta_organico._contexto_ig(creds)
+        datos = meta_organico._get(version, ig, token_ig,
                                    {"fields": "username,followers_count"})
         inf.add(OK, f"Instagram vinculado: @{datos.get('username')} · "
                     f"{datos.get('followers_count', '?')} seguidores")
-        _probar_metricas(inf, version, ig, page_token,
+        _probar_metricas(inf, version, ig, token_ig,
                          meta_organico._MAPA_IG_DIA, "Instagram")
     except Exception as e:  # noqa: BLE001
         inf.add(FALLO, f"Instagram no disponible: {e}",
@@ -192,7 +202,10 @@ def _probar_metricas(inf: Informe, version: str, objeto_id: str, token: str,
                     break
                 errores.append(f"{cand}: responde vacío")
             except Exception as e:  # noqa: BLE001
-                errores.append(f"{cand}: {str(e)[:70]}")
+                # Sin truncar: los mensajes de Meta llevan al final la lista de
+                # valores válidos o el parámetro que falta, que es justo la
+                # pista que sirve para arreglar el mapa.
+                errores.append(f"{cand}: {e}")
         if ganador:
             marca = OK if ganador == candidatos[0] else AVISO
             extra = ("" if ganador == candidatos[0]

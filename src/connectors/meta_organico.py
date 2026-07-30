@@ -153,12 +153,29 @@ def _get(version: str, path: str, token: str, params: dict | None = None) -> dic
     return datos
 
 
+def _tipo_de_token(version: str, token: str) -> str:
+    """"PAGE" | "SYSTEM_USER" | "USER" | "" (si no se puede saber)."""
+    try:
+        return _get(version, "debug_token", token,
+                    {"input_token": token}).get("data", {}).get("type", "")
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 def _token_pagina(creds: dict) -> tuple[str, str]:
     """(page_id, page_token).
 
-    Si el token de secrets ya es de Página, se usa tal cual. Si es de usuario o
-    de System User, se cambia por el token de la Página, que es el que aceptan
-    los endpoints de insights.
+    Page Insights EXIGE un token de Página. Un token de System User o de usuario
+    no vale: la API responde «(#190) This method must be called with a Page
+    Access Token». Así que hay que canjearlo pidiendo el campo `access_token` de
+    la propia Página.
+
+    ⚠️ Antes, si el canje fallaba, esta función devolvía el token original dando
+    por hecho que «ya era de Página». Era una suposición peligrosa: cuando el
+    canje falla por falta de `pages_read_engagement`, devolvía un token
+    inservible y los errores aparecían después, repartidos por cada métrica,
+    como si los nombres de las métricas estuvieran mal. Ahora se comprueba el
+    TIPO del token y se falla aquí, con la causa real.
     """
     version = _version(creds)
     token = creds["access_token"]
@@ -166,14 +183,47 @@ def _token_pagina(creds: dict) -> tuple[str, str]:
     if not page_id:
         raise RuntimeError("Falta page_id en [social_meta] o en config")
 
+    tipo = _tipo_de_token(version, token)
+    if tipo == "PAGE":
+        return page_id, token
+
     try:
         datos = _get(version, page_id, token, {"fields": "access_token"})
-        if datos.get("access_token"):
-            return page_id, datos["access_token"]
+    except Exception as e:  # noqa: BLE001
+        raise RuntimeError(
+            f"No se ha podido obtener el token de Página (token de tipo "
+            f"{tipo or 'desconocido'}): {e}. Suele ser que al token le falta "
+            f"pages_read_engagement, o que la Página no está asignada al "
+            f"System User."
+        ) from e
+
+    if not datos.get("access_token"):
+        raise RuntimeError(
+            f"La Página {page_id} no ha devuelto access_token y el token es de "
+            f"tipo {tipo or 'desconocido'}, no PAGE. Page Insights necesita un "
+            f"token de Página."
+        )
+    return page_id, datos["access_token"]
+
+
+def _contexto_ig(creds: dict) -> tuple[str, str]:
+    """(ig_user_id, token) para los endpoints de Instagram.
+
+    A diferencia de Page Insights, la Instagram Graph API acepta el token de
+    System User tal cual. Por eso Instagram NO debe caerse cuando falla el canje
+    a token de Página: son requisitos distintos, y el módulo entero se apoya en
+    que cada red se resuelva por su cuenta. Comprobado contra la cuenta real:
+    con el token de System User (sin `pages_read_engagement`) Facebook fallaba
+    entero mientras Instagram devolvía seguidores, `reach` y `follower_count`.
+    """
+    page_id = creds.get("page_id") or config.SOCIAL_INSTAGRAM_USER_ID
+    token = creds["access_token"]
+    try:
+        page_id, token = _token_pagina(creds)
     except Exception:  # noqa: BLE001
-        # Si no devuelve token de Página, es que el token YA es de Página.
-        pass
-    return page_id, token
+        page_id = creds.get("page_id") or config.SOCIAL_FACEBOOK_PAGE_ID
+        token = creds["access_token"]
+    return _ig_user_id(creds, page_id, token), token
 
 
 def _ig_user_id(creds: dict, page_id: str, page_token: str) -> str:
@@ -389,8 +439,7 @@ def _sumar_engagement_de_posts(diario: pd.DataFrame, posts: pd.DataFrame,
 
 def _api_ig_diario(creds: dict, desde, hasta) -> pd.DataFrame:
     version = _version(creds)
-    page_id, token = _token_pagina(creds)
-    ig = _ig_user_id(creds, page_id, token)
+    ig, token = _contexto_ig(creds)
 
     series = _insights_tolerante(version, ig, token, _MAPA_IG_DIA, desde, hasta)
     df = _series_a_df(series, RED_IG)
@@ -412,8 +461,7 @@ _TIPO_IG = {"IMAGE": "Imagen", "VIDEO": "Reel", "CAROUSEL_ALBUM": "Carrusel",
 
 def _api_ig_posts(creds: dict, desde, hasta) -> pd.DataFrame:
     version = _version(creds)
-    page_id, token = _token_pagina(creds)
-    ig = _ig_user_id(creds, page_id, token)
+    ig, token = _contexto_ig(creds)
 
     campos = ("id,caption,media_type,media_product_type,permalink,thumbnail_url,"
               "media_url,timestamp,like_count,comments_count")

@@ -12,7 +12,9 @@ import streamlit as st
 from src import config
 from src.connectors import ga4, google_ads, hubspot, linkedin, meta_ads, meta_organico
 from src.connectors import youtube as youtube_conn
+from src.connectors.base import leer_historico
 from src.data import social as social_schema
+from src.data import social_demografia
 
 
 @dataclass
@@ -78,6 +80,7 @@ class DatosSocial:
     diario: pd.DataFrame        # una fila por (fecha, red)
     posts: pd.DataFrame         # una fila por publicación
     origenes: dict              # {"YouTube": "api", "LinkedIn": "sample", ...}
+    demografia: pd.DataFrame = None  # una fila por (fecha, red, dimension, categoria)
 
     def hay_datos_reales(self) -> bool:
         return any(o in ("api", "cache", "csv", "historico")
@@ -123,12 +126,25 @@ def _cargar_social(desde, hasta):
                           ignore_index=True)
                 if any(p is not None and not p.empty for p in posts)
                 else social_schema.esquema_posts_vacio())
-    return diario, df_posts, origenes
+
+    # La demografía sale SOLO del histórico que acumula el job: son fotos
+    # «lifetime» que no dependen del periodo elegido y no tiene sentido pedirlas
+    # a la API en cada carga de página.
+    demos = []
+    for red in config.REDES_SOCIAL:
+        bruto = leer_historico(f"social_{red.lower()}_demografia")
+        if bruto is not None and not bruto.empty:
+            demos.append(social_demografia.normalizar(bruto))
+    demografia = (pd.concat(demos, ignore_index=True) if demos
+                  else social_demografia.esquema_vacio())
+
+    return diario, df_posts, origenes, demografia
 
 
 def cargar_social(desde, hasta) -> DatosSocial:
-    diario, posts, origenes = _cargar_social(desde, hasta)
-    return DatosSocial(diario=diario, posts=posts, origenes=origenes)
+    diario, posts, origenes, demografia = _cargar_social(desde, hasta)
+    return DatosSocial(diario=diario, posts=posts, origenes=origenes,
+                        demografia=demografia)
 
 
 def cargar_todo(desde, hasta) -> DatosDashboard:

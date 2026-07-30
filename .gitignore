@@ -30,3 +30,6 @@ env/
 # Credenciales: TODAS las variantes (copias, .bak, .local...)
 .streamlit/secrets*
 !.streamlit/secrets.toml.example
+
+# Log del job diario de social
+data/cron_social.log

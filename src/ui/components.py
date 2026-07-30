@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from src.config import COLOR_PLATAFORMA, TEMA
-from src.ui.theme import badge_origen, eur, num, pct
+from src.ui.theme import _es_nulo, badge_origen, eur, num, pct
 
 
 import base64 as _base64
@@ -186,7 +186,7 @@ def tabla(df: pd.DataFrame, columnas: list[dict], etiqueta_col: str | None = Non
         celdas = []
         for c in columnas:
             v = row.get(c["key"], "")
-            if v == "" or v is None:
+            if _es_nulo(v) or v == "":
                 txt = ""
             elif c.get("fmt"):
                 try:

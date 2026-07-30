@@ -226,13 +226,23 @@ _LEG_ABAJO = dict(orientation="h", yanchor="top", y=-0.28, xanchor="center", x=0
 
 
 def linea_temporal(df: pd.DataFrame, x: str, y: str, color: str | None,
-                   titulo: str, y_label: str = "") -> None:
+                   titulo: str, y_label: str = "",
+                   simbolos: dict | None = None) -> None:
+    """Serie temporal por color.
+
+    `simbolos` ({valor: símbolo de Plotly}) añade un SEGUNDO canal de identidad
+    además del color: cada serie lleva su propia forma de punto. Lo usa la
+    página de social orgánico, donde las cuatro redes se comparan entre sí y el
+    color solo no basta para quien tenga visión de color reducida o imprima en
+    gris. Las páginas que no lo pasan se dibujan igual que siempre.
+    """
     if df.empty:
         st.info("Sin datos para el periodo seleccionado.")
         return
+    extra = dict(symbol=color, symbol_map=simbolos) if simbolos and color else {}
     fig = px.line(df, x=x, y=y, color=color, markers=True,
                   color_discrete_map=COLOR_PLATAFORMA,
-                  color_discrete_sequence=list(TEMA.paleta))
+                  color_discrete_sequence=list(TEMA.paleta), **extra)
     fig.update_layout(
         title=titulo, height=400 if color else 340,
         margin=dict(l=10, r=10, t=40, b=90 if color else 10),

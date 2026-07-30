@@ -163,7 +163,8 @@ with col_izq:
         st.info(f"Ninguna red publica «{elegida}» en el periodo.")
     else:
         ui.linea_temporal(serie, x="fecha", y="valor", color="red",
-                          titulo=f"{elegida} por día", y_label=elegida)
+                          titulo=f"{elegida} por día", y_label=elegida,
+                          simbolos=config.SIMBOLO_RED_SOCIAL)
         fuera = config.redes_sin_metrica(metrica)
         if fuera:
             st.caption(
@@ -179,7 +180,8 @@ with col_der:
         st.info("Sin datos de seguidores en el periodo.")
     else:
         ui.linea_temporal(crec, x="fecha", y="acumulado", color="red",
-                          titulo="Acumulado en el periodo", y_label="Seguidores")
+                          titulo="Acumulado en el periodo", y_label="Seguidores",
+                          simbolos=config.SIMBOLO_RED_SOCIAL)
         st.caption(
             "Acumulado de nuevos seguidores, no el total absoluto: los totales "
             "de cada red son de órdenes distintos y en un mismo gráfico aplastan "

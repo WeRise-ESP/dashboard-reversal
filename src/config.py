@@ -436,15 +436,41 @@ COLOR_PLATAFORMA = {
 
 REDES_SOCIAL: tuple[str, ...] = ("YouTube", "Facebook", "Instagram", "LinkedIn")
 
-# Colores de identidad de cada red (para distinguir series en los gráficos).
-# Colores de marca de cada red. LinkedIn usa su azul OSCURO (#004182, secundario
-# oficial) en vez del #0A66C2 habitual: junto al azul de Facebook las dos líneas
-# del gráfico eran indistinguibles.
+# Colores de identidad de cada red en los gráficos.
+#
+# ⚠️ NO son los colores de marca, y es a propósito. Los cuatro oficiales chocan
+# por parejas: el rojo de YouTube con el rosa de Instagram, y el azul de Facebook
+# con el de LinkedIn. Medido sobre el fondo real (#F6F4EF), Instagram y YouTube
+# quedaban a ΔE 10,4 en visión normal —por debajo de 15, el umbral a partir del
+# cual se distinguen con seguridad— y a ΔE 5,1 en daltonismo tritan: la misma
+# línea a efectos prácticos. En una página cuyo trabajo es comparar redes entre
+# sí, eso no es un detalle estético.
+#
+# Esta paleta mantiene los dos colores más icónicos y más separados entre sí
+# (rojo de YouTube, azul de Facebook) y lleva las otras dos al espacio de tono
+# que queda libre: Instagram al morado —que sí está en su degradado— y LinkedIn
+# al verde azulado. Validada con el script del skill `dataviz`: pasa banda de
+# luminosidad, croma, contraste y separación en TODAS las parejas, con el peor
+# caso en ΔE 9,0 (deutan) y 8,1 (tritan), ambos por encima del mínimo de 8.
+#
+# Si tocas un color, revalida — no lo juzgues a ojo:
+#   node scripts/validate_palette.js "<hex,hex,hex,hex>" \
+#        --mode light --surface "#F6F4EF" --pairs all
 COLOR_RED_SOCIAL = {
-    "YouTube": "#FF0000",
-    "Facebook": "#1877F2",
-    "Instagram": "#E1306C",
-    "LinkedIn": "#004182",
+    "YouTube": "#E03131",    # rojo
+    "Facebook": "#4DABF7",   # azul
+    "Instagram": "#AE3EC9",  # morado (presente en su degradado de marca)
+    "LinkedIn": "#0CA678",   # verde azulado
+}
+
+# Segundo canal de identidad, además del color: cada red lleva su propio símbolo
+# de punto. Así la serie se sigue distinguiendo con visión de color reducida, en
+# impresión en gris, o cuando dos líneas se cruzan y se solapan.
+SIMBOLO_RED_SOCIAL = {
+    "YouTube": "circle",
+    "Facebook": "square",
+    "Instagram": "diamond",
+    "LinkedIn": "triangle-up",
 }
 
 COLOR_PLATAFORMA.update(COLOR_RED_SOCIAL)

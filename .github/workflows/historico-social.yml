@@ -1,0 +1,124 @@
+# Captura diaria del histórico de social orgánico.
+#
+# ¿Por qué existe, si el dashboard ya lee las APIs en vivo?
+#
+# Porque hay datos que las APIs solo dan durante una ventana corta. Instagram
+# devuelve 30 DÍAS de `follower_count`: si hoy le preguntas por marzo, no
+# contesta — el dato ya no existe en sus servidores. Da igual desde dónde se
+# pregunte. La única forma de tener histórico es haber preguntado dentro de esa
+# ventana y haber guardado la respuesta.
+#
+# Eso es todo lo que hace este workflow: preguntar cada día y acumular el
+# resultado en data/historico_social/, que se commitea al repo. El dashboard
+# desplegado lo funde por debajo de lo que devuelva la API en vivo.
+#
+# Corre en GitHub, no en el portátil de nadie: si el Mac está apagado, dormido
+# o de vacaciones, el histórico se sigue capturando igual.
+#
+# ── Secretos que hay que crear en el repo ──────────────────────────────────
+#   Settings → Secrets and variables → Actions → New repository secret
+#
+#     META_SOCIAL_TOKEN      token de System User (Facebook + Instagram)
+#     YOUTUBE_CLIENT_ID      de [youtube] en secrets.toml
+#     YOUTUBE_CLIENT_SECRET
+#     YOUTUBE_REFRESH_TOKEN
+#     LINKEDIN_CLIENT_ID     (cuando LinkedIn apruebe el acceso)
+#     LINKEDIN_CLIENT_SECRET
+#     LINKEDIN_REFRESH_TOKEN
+#
+# Las redes sin secreto se saltan sin tocar su histórico, así que el workflow
+# funciona desde el primer día aunque falten LinkedIn o YouTube.
+
+name: Histórico de social orgánico
+
+on:
+  schedule:
+    # 04:10 UTC ≈ 06:10 en España. Con minuto distinto de 0 a propósito: a la
+    # hora en punto GitHub tiene picos de carga y retrasa los jobs programados.
+    - cron: "10 4 * * *"
+  workflow_dispatch:  # permite lanzarlo a mano desde la pestaña Actions
+
+# Necesario para que el job pueda commitear el histórico que captura.
+permissions:
+  contents: write
+
+# Si una ejecución se solapa con la anterior, esperar en vez de correr las dos:
+# dos procesos escribiendo el mismo CSV acabarían en conflicto de merge.
+concurrency:
+  group: historico-social
+  cancel-in-progress: false
+
+jobs:
+  capturar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Descargar el repo
+        uses: actions/checkout@v4
+
+      - name: Preparar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Componer secrets.toml
+        # El runner es efímero y se destruye al terminar; los valores van
+        # enmascarados en los logs. Las secciones de redes sin secreto salen
+        # con el token vacío y el conector las salta solo.
+        env:
+          META_SOCIAL_TOKEN: ${{ secrets.META_SOCIAL_TOKEN }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+          LINKEDIN_CLIENT_ID: ${{ secrets.LINKEDIN_CLIENT_ID }}
+          LINKEDIN_CLIENT_SECRET: ${{ secrets.LINKEDIN_CLIENT_SECRET }}
+          LINKEDIN_REFRESH_TOKEN: ${{ secrets.LINKEDIN_REFRESH_TOKEN }}
+        run: |
+          mkdir -p .streamlit
+          {
+            echo '[social_meta]'
+            echo "access_token = \"${META_SOCIAL_TOKEN}\""
+            echo 'api_version = "v21.0"'
+            echo
+            echo '[youtube]'
+            echo "client_id = \"${YOUTUBE_CLIENT_ID}\""
+            echo "client_secret = \"${YOUTUBE_CLIENT_SECRET}\""
+            echo "refresh_token = \"${YOUTUBE_REFRESH_TOKEN}\""
+            echo 'channel_id = "UCAsFeXWR-s8Wkj0lmGhtx1A"'
+            echo
+            echo '[linkedin]'
+            echo "client_id = \"${LINKEDIN_CLIENT_ID}\""
+            echo "client_secret = \"${LINKEDIN_CLIENT_SECRET}\""
+            echo "refresh_token = \"${LINKEDIN_REFRESH_TOKEN}\""
+            echo 'version = "202506"'
+          } > .streamlit/secrets.toml
+
+      - name: Capturar el histórico
+        # Sale con 1 si NINGUNA red se pudo capturar; que falte una concreta
+        # (LinkedIn sin aprobar) es normal y sale con 0.
+        run: python scripts/snapshot_social.py
+
+      - name: Commitear lo capturado
+        run: |
+          if git diff --quiet -- data/historico_social/; then
+            echo "Sin cambios en el histórico: nada que commitear."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/historico_social/
+          git commit -m "datos: histórico de social orgánico $(date -u '+%Y-%m-%d')
+
+          Captura automática del workflow historico-social."
+          # rebase por si alguien empujó mientras corría el job.
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Borrar las credenciales del runner
+        if: always()
+        run: rm -f .streamlit/secrets.toml

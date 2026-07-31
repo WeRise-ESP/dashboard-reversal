@@ -129,11 +129,18 @@ Tema de marca: verde `#0E7C52` (`src/config.py` → `TEMA`).
   demografía solo las da la Business API, que va por revisión aparte.
 - **LinkedIn no publica edad ni género.** Da cargo, función, sector, tamaño de
   empresa y país. Hay un test que lo fija.
-- **TikTok está ENTERO en `SOPORTE_POR_VERIFICAR`** (31-jul-2026): su app no
-  existe todavía, así que nada se ha sondeado y todas sus métricas salen a «—».
-  Lo declarado en el conector viene de la documentación, que en esta página ya
-  ha fallado cuatro veces. Se vacía con lo que confirme
-  `scripts/verificar_social.py --red TikTok`.
+- **En la Display API de TikTok el método NO es uniforme: `user/info/` es GET y
+  `video/list/` es POST.** Equivocarlo devuelve un 404 en **texto plano**
+  («Unsupported path(Janus)»), y al parsearlo como JSON revienta con «Expecting
+  value: line 1 column 1», que parece un problema de scopes y no lo es. Por eso
+  `tiktok._peticion` rechaza toda respuesta que no venga en `application/json`.
+- **TikTok no da altas de seguidores por día**, solo el `follower_count` actual.
+  `seguidores_nuevos` está fuera de `SOPORTE_METRICA_SOCIAL` para TikTok: restar
+  dos fotos consecutivas del histórico daría un número que la API nunca dijo.
+- **El sandbox de TikTok no necesita aprobación.** Es la vía para integrar y
+  grabar el vídeo de revisión: se autoriza una cuenta concreta (*Target users*,
+  que debe ACEPTAR la invitación desde la app) y la API devuelve datos reales.
+  Tiene su **propio client_key y client_secret**, distintos de producción.
 - **La paleta está validada para CINCO series, y el margen es estrecho.** El
   peor par (TikTok↔Instagram) queda en ΔE 6,2 bajo protanopia, admisible solo
   porque cada red lleva su propio símbolo de punto. Si se quitan los símbolos,

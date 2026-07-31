@@ -533,7 +533,9 @@ SOPORTE_METRICA_SOCIAL: dict[str, set[str]] = {
     "impresiones": {"LinkedIn"},
     "visualizaciones": {"YouTube", "Facebook", "Instagram", "LinkedIn", "TikTok"},
     "alcance": {"Instagram", "LinkedIn"},
-    "seguidores_nuevos": {"YouTube", "Facebook", "Instagram", "LinkedIn", "TikTok"},
+    # TikTok NO: su Display API solo da el `follower_count` actual, nunca las
+    # altas del día. Comprobado el 31-jul-2026 contra la cuenta real.
+    "seguidores_nuevos": {"YouTube", "Facebook", "Instagram", "LinkedIn"},
     "likes": {"YouTube", "Facebook", "Instagram", "LinkedIn", "TikTok"},
     "comentarios": {"YouTube", "Facebook", "Instagram", "LinkedIn", "TikTok"},
     "compartidos": {"YouTube", "Facebook", "Instagram", "LinkedIn", "TikTok"},
@@ -553,10 +555,13 @@ SOPORTE_METRICA_SOCIAL: dict[str, set[str]] = {
 # que nunca va a llegar. Ver `meta_organico._METRICAS_POST_FB` (no la pide).
 SOPORTE_METRICA_POST: dict[str, set[str]] = {
     "impresiones": {"LinkedIn"},
-    "visualizaciones": {"YouTube", "Facebook", "Instagram", "LinkedIn"},
-    "likes": {"YouTube", "Facebook", "Instagram", "LinkedIn"},
-    "comentarios": {"YouTube", "Facebook", "Instagram", "LinkedIn"},
-    "compartidos": {"YouTube", "Facebook", "Instagram", "LinkedIn"},
+    # TikTok sí, en las cuatro: `video/list/` devuelve view_count, like_count,
+    # comment_count y share_count acumulados por vídeo. Sondeado el 31-jul-2026
+    # contra @reversal.institute — 10 de 10 vídeos con dato en las cuatro.
+    "visualizaciones": {"YouTube", "Facebook", "Instagram", "LinkedIn", "TikTok"},
+    "likes": {"YouTube", "Facebook", "Instagram", "LinkedIn", "TikTok"},
+    "comentarios": {"YouTube", "Facebook", "Instagram", "LinkedIn", "TikTok"},
+    "compartidos": {"YouTube", "Facebook", "Instagram", "LinkedIn", "TikTok"},
     # Clics en la publicación. Los dan Facebook (`post_clicks`) y LinkedIn
     # (`clickCount`); Instagram y YouTube no. Verificado contra las cuentas
     # reales el 30-jul-2026. Es la métrica de orgánico más cercana a intención:
@@ -584,23 +589,17 @@ SOPORTE_METRICA_POST: dict[str, set[str]] = {
 # Analytics API v2 responde HTTP 400 al pedir `impressions` en un reporte de
 # canal: en Studio se ve, por la API no se puede sacar. YouTube se queda fuera de
 # SOPORTE_METRICA_SOCIAL["impresiones"] por derecho propio, no por precaución.
-# TikTok entero está aquí: la app está SIN CREAR (31-jul-2026), así que no se ha
-# podido sondear una sola métrica contra la cuenta. Lo declarado arriba sale de
-# la documentación de la Display API, y esta página ya ha demostrado cuatro
-# veces que documentación y realidad no coinciden — Facebook había retirado
-# impresiones y alcance, YouTube devuelve `age65-` en vez de `age65+`.
+# Vacío también para TikTok desde el 31-jul-2026. Sondeado contra la cuenta real
+# (@reversal.institute, sandbox de la app) con `verificar_social.py --red
+# TikTok`: visualizaciones, likes, comentarios y compartidos responden en 10 de
+# 10 vídeos, así que salen de aquí por derecho propio.
 #
-# Mientras esté aquí, TikTok muestra «—» en todo en vez de números que nadie ha
-# visto funcionar. Al llegar la credencial: `scripts/verificar_social.py --red
-# TikTok` dice qué responde de verdad, y se vacía este conjunto con lo que
-# confirme.
-SOPORTE_POR_VERIFICAR: set[tuple[str, str]] = {
-    ("visualizaciones", "TikTok"),
-    ("seguidores_nuevos", "TikTok"),
-    ("likes", "TikTok"),
-    ("comentarios", "TikTok"),
-    ("compartidos", "TikTok"),
-}
+# `seguidores_nuevos` NO se ha movido aquí: se ha quitado directamente de
+# SOPORTE_METRICA_SOCIAL. No es que esté sin verificar, es que la Display API no
+# lo publica — solo da el `follower_count` ACTUAL, nunca el alta del día. El
+# histórico acumula fotos, y restar dos fotos consecutivas daría un número que
+# la API no ha dicho.
+SOPORTE_POR_VERIFICAR: set[tuple[str, str]] = set()
 
 # Métrica que se usa como KPI principal comparable entre las 4 redes. NO se usa
 # «impresiones» porque Instagram ya no la publica (ver nota de arriba).

@@ -98,7 +98,10 @@ def _canjear(client_key: str, client_secret: str, code: str,
     print("=" * 68)
     print("[tiktok]")
     print(f'client_key    = "{client_key}"')
-    print('client_secret = "…"   # el que acabas de teclear')
+    # No lo imprimimos (acabaría en el historial de la terminal), pero el
+    # marcador tiene que cantar: un "…" se pega tal cual sin darse cuenta.
+    print('client_secret = "PEGA_AQUI_EL_CLIENT_SECRET"   # el que acabas '
+          'de teclear; NO lo dejes así')
     print(f'refresh_token = "{refresh}"')
     print("=" * 68)
     dias = int(datos.get("refresh_expires_in", 0)) // 86400
@@ -120,24 +123,19 @@ def main() -> int:
                         "automáticamente")
     args = p.parse_args()
 
-    client_secret = os.environ.get("TIKTOK_CLIENT_SECRET") or getpass.getpass(
-        "Client Secret (no se muestra al teclear): ").strip()
-    if not client_secret:
-        print("✗ Sin Client Secret no se puede canjear el código.")
-        return 1
+    # Solo se pide cuando de verdad hace falta: construir la URL de
+    # autorización no usa el secreto, y hacerlo teclear de más invita a
+    # dejarlo escrito en un sitio peor.
+    def secreto() -> str:
+        s = os.environ.get("TIKTOK_CLIENT_SECRET") or getpass.getpass(
+            "Client Secret (no se muestra al teclear): ").strip()
+        if not s:
+            raise SystemExit("✗ Sin Client Secret no se puede canjear el código.")
+        return s
 
     # Vía manual: el usuario ya tiene el código de una redirect externa.
     if args.code:
-        return _canjear(args.client_key, client_secret, args.code, args.redirect)
-
-    partes = urllib.parse.urlparse(args.redirect)
-    if partes.scheme != "http" or partes.hostname not in ("localhost", "127.0.0.1"):
-        print("✗ Para recoger el código automáticamente, --redirect tiene que "
-              "apuntar a este equipo (http://localhost:… o http://127.0.0.1:…).\n"
-              f"  Has pasado: {args.redirect}\n"
-              "  → Si tu app tiene registrada una URL externa, ábrela a mano y "
-              "vuelve a ejecutar con --code <el code de la barra>.")
-        return 1
+        return _canjear(args.client_key, secreto(), args.code, args.redirect)
 
     estado = _secrets.token_urlsafe(16)
     url = f"{AUTORIZAR}?" + urllib.parse.urlencode({
@@ -150,6 +148,25 @@ def main() -> int:
 
     print(">>> ABRE ESTA URL CON LA CUENTA QUE ADMINISTRA EL TIKTOK:\n")
     print(url + "\n")
+
+    # TikTok rechaza las redirect URI de localhost y exige HTTPS, así que la
+    # vía normal es la manual: el código se copia de la barra de direcciones.
+    # Imprimimos la URL ANTES de comprobarlo; si no, no habría forma de
+    # obtener el código.
+    partes = urllib.parse.urlparse(args.redirect)
+    if partes.scheme != "http" or partes.hostname not in ("localhost", "127.0.0.1"):
+        print(f"La redirect URI ({args.redirect}) no apunta a este equipo, así "
+              "que el código hay que recogerlo a mano:\n"
+              "  1. Abre la URL de arriba y autoriza.\n"
+              f"  2. Aterrizarás en {args.redirect}?code=…&state=…\n"
+              f"  3. Comprueba que el state es exactamente: {estado}\n"
+              "  4. Copia el valor de `code` (todo, hasta el & siguiente) y "
+              "vuelve a ejecutar este script añadiendo:\n"
+              f"       --redirect {args.redirect} --code <el code>\n"
+              "     El código caduca en pocos minutos: no lo dejes reposar.")
+        return 0
+
+    client_secret = secreto()
     print(f"Esperando el callback en {args.redirect} …")
 
     servidor = HTTPServer((partes.hostname, partes.port or 80), _Recoge)

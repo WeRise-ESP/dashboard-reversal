@@ -408,7 +408,8 @@ def verificar_tiktok() -> Informe:
         return inf
 
     try:
-        datos = tiktok._post("user/info/", token, tiktok._CAMPOS_USUARIO)
+        datos = tiktok._peticion("GET", "user/info/", token,
+                                 tiktok._CAMPOS_USUARIO)
         u = datos.get("user", {})
         inf.add(OK, f"Cuenta = «{u.get('display_name', '?')}» · "
                     f"{u.get('follower_count', '?')} seguidores · "

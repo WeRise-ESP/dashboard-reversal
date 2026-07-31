@@ -9,14 +9,18 @@ Credenciales esperadas en .streamlit/secrets.toml:
     client_secret = "..."
     refresh_token = "..."
 
-⚠️ ESTADO: SIN VERIFICAR CONTRA NINGUNA CUENTA. La app de TikTok estaba sin
-crear el 31-jul-2026, así que todo lo de aquí sale de la documentación. Por eso
-`config.SOPORTE_POR_VERIFICAR` tiene a TikTok ENTERO: hasta que se sondee, sus
-métricas salen a nulo en vez de mostrar números que nadie ha visto funcionar.
+ESTADO: verificado el 31-jul-2026 contra @reversal.institute, a través del
+sandbox de la app (que no necesita aprobación). Visualizaciones, likes,
+comentarios y compartidos responden en 10 de 10 vídeos.
 
-En esta misma página, la documentación ya ha fallado cuatro veces (Facebook
-había retirado impresiones y alcance; YouTube devuelve `age65-`). Al llegar la
-credencial: `scripts/verificar_social.py --red TikTok`.
+Dos cosas que la documentación no decía y costó descubrir:
+
+  - **`user/info/` es GET y `video/list/` es POST.** Llamar a `user/info/` por
+    POST devuelve 404 en TEXTO PLANO («Unsupported path(Janus)»), que al
+    parsearlo como JSON revienta con «Expecting value: line 1 column 1» y
+    parece un problema de scopes que no existe.
+  - **No hay altas de seguidores por día.** Solo el `follower_count` actual, así
+    que `seguidores_nuevos` NO está en `config.SOPORTE_METRICA_SOCIAL`.
 
 ⚠️ DIFERENCIA ESTRUCTURAL CON LAS OTRAS CUATRO REDES, y no es un detalle:
 
@@ -128,21 +132,32 @@ def _token(creds: dict) -> str:
     return datos["access_token"]
 
 
-def _post(ruta: str, token: str, campos: str, cuerpo: dict | None = None) -> dict:
-    """POST a la Display API. Lanza excepción si la respuesta trae error.
+def _peticion(metodo: str, ruta: str, token: str, campos: str,
+              cuerpo: dict | None = None) -> dict:
+    """Llama a la Display API. Lanza excepción si la respuesta trae error.
 
     TikTok mete el error DENTRO del cuerpo con HTTP 200, así que no basta con
     `raise_for_status`: hay que mirar `error.code`, que vale «ok» cuando todo
     ha ido bien.
+
+    El método NO es uniforme: `user/info/` es GET y `video/list/` es POST.
+    Comprobado el 31-jul-2026 contra la API real: llamar a `user/info/` por
+    POST devuelve un 404 en **texto plano** («Unsupported path(Janus)»), que
+    al intentar parsearlo como JSON revienta con «Expecting value: line 1
+    column 1» y despista hacia un problema de scopes que no existe.
     """
     import requests
 
-    r = requests.post(
-        f"{_BASE}/{ruta}", params={"fields": campos},
+    r = requests.request(
+        metodo, f"{_BASE}/{ruta}", params={"fields": campos},
         headers={"Authorization": f"Bearer {token}",
                  "Content-Type": "application/json"},
-        json=cuerpo or {}, timeout=60,
+        json=cuerpo if metodo == "POST" else None, timeout=60,
     )
+    if r.content and not r.headers.get("content-type", "").startswith(
+            "application/json"):
+        raise RuntimeError(f"TikTok respondió {r.status_code} en "
+                           f"{r.headers.get('content-type')}: {r.text[:200]}")
     datos = r.json() if r.content else {}
     error = (datos.get("error") or {})
     if error.get("code") not in (None, "ok"):
@@ -164,7 +179,7 @@ def _api_diario(creds: dict, desde, hasta) -> pd.DataFrame:
     flujo dispararía cualquier suma del periodo.
     """
     token = _token(creds)
-    datos = _post("user/info/", token, _CAMPOS_USUARIO)
+    datos = _peticion("GET", "user/info/", token, _CAMPOS_USUARIO)
     usuario = datos.get("user", {})
     if not usuario:
         return pd.DataFrame()
@@ -192,7 +207,8 @@ def _api_posts(creds: dict, desde, hasta) -> pd.DataFrame:
         cuerpo = {"max_count": 20}
         if cursor:
             cuerpo["cursor"] = cursor
-        datos = _post("video/list/", token, _CAMPOS_VIDEO, cuerpo)
+        datos = _peticion("POST", "video/list/", token, _CAMPOS_VIDEO,
+                          cuerpo)
 
         videos = datos.get("videos", [])
         if not videos:

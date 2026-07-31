@@ -35,7 +35,7 @@ RAIZ = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(RAIZ))
 
 from src import config  # noqa: E402
-from src.connectors import linkedin, meta_organico, youtube  # noqa: E402
+from src.connectors import linkedin, meta_organico, tiktok, youtube  # noqa: E402
 from src.connectors.base import _leer_secreto  # noqa: E402
 
 OK, FALLO, AVISO, INFO = "✓", "✗", "!", "·"
@@ -371,9 +371,85 @@ def verificar_linkedin() -> Informe:
 
 
 # --------------------------------------------------------------------------- #
+# TikTok
+# --------------------------------------------------------------------------- #
+
+# Métricas que el conector DECLARA por documentación y que hay que confirmar una
+# a una. Mientras estén en `config.SOPORTE_POR_VERIFICAR`, la página las muestra
+# como «—» aunque la API las devuelva.
+_POR_CONFIRMAR_TIKTOK = ("visualizaciones", "seguidores_nuevos", "likes",
+                         "comentarios", "compartidos")
+
+
+def verificar_tiktok() -> Informe:
+    inf = Informe("TikTok  ([tiktok])")
+    creds = _leer_secreto("tiktok")
+    if not creds:
+        _falta_seccion(inf, "tiktok",
+                       "Crea la app en developers.tiktok.com con Login Kit y "
+                       "Display API, y genera el token con "
+                       "scripts/tiktok_refresh_token.py")
+        return inf
+
+    faltan = [k for k in ("client_key", "client_secret", "refresh_token")
+              if not creds.get(k)]
+    if faltan:
+        inf.add(FALLO, f"Faltan claves: {', '.join(faltan)}")
+        return inf
+    inf.add(OK, "client_key, client_secret y refresh_token presentes")
+
+    try:
+        token = tiktok._token(creds)
+        inf.add(OK, "El refresh token se canjea correctamente")
+    except Exception as e:  # noqa: BLE001
+        inf.add(FALLO, f"No se puede canjear el refresh token: {e}",
+                "El refresh token de TikTok dura 365 días; si ha caducado, "
+                "rehaz el flujo con scripts/tiktok_refresh_token.py.")
+        return inf
+
+    try:
+        datos = tiktok._post("user/info/", token, tiktok._CAMPOS_USUARIO)
+        u = datos.get("user", {})
+        inf.add(OK, f"Cuenta = «{u.get('display_name', '?')}» · "
+                    f"{u.get('follower_count', '?')} seguidores · "
+                    f"{u.get('video_count', '?')} vídeos")
+    except Exception as e:  # noqa: BLE001
+        inf.add(FALLO, f"No se puede leer el perfil: {e}",
+                "Suele ser que faltan los scopes user.info.basic / "
+                "user.info.stats, o que la app sigue sin aprobar.")
+        return inf
+
+    hasta = date.today()
+    desde = hasta - timedelta(days=90)
+    try:
+        df = tiktok._api_posts(creds, desde, hasta)
+        if df.empty:
+            inf.add(AVISO, "Sin vídeos en los últimos 90 días",
+                    "Puede ser correcto si la cuenta es nueva.")
+        else:
+            inf.add(OK, f"{len(df)} vídeos en los últimos 90 días")
+            for m in ("visualizaciones", "likes", "comentarios", "compartidos"):
+                n = int(df[m].notna().sum()) if m in df else 0
+                inf.add(OK if n else AVISO,
+                        f"TikTok/{m}: {n}/{len(df)} vídeos con dato")
+    except Exception as e:  # noqa: BLE001
+        inf.add(FALLO, f"video/list falla: {e}",
+                "Falta el scope video.list, o la app no está aprobada.")
+
+    pendientes = [m for m in _POR_CONFIRMAR_TIKTOK
+                  if (m, "TikTok") in config.SOPORTE_POR_VERIFICAR]
+    if pendientes:
+        inf.add(AVISO, f"{len(pendientes)} métricas siguen marcadas «sin verificar»",
+                "La página las muestra como «—» aunque la API las devuelva. "
+                "Cuando confirmes arriba que responden, quítalas de "
+                "config.SOPORTE_POR_VERIFICAR: " + ", ".join(pendientes))
+    return inf
+
+
+# --------------------------------------------------------------------------- #
 
 FUENTES = {"Meta": verificar_meta, "YouTube": verificar_youtube,
-           "LinkedIn": verificar_linkedin}
+           "LinkedIn": verificar_linkedin, "TikTok": verificar_tiktok}
 
 
 def main() -> int:

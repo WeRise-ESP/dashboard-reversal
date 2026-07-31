@@ -10,7 +10,8 @@ import pandas as pd
 import streamlit as st
 
 from src import config
-from src.connectors import ga4, google_ads, hubspot, linkedin, meta_ads, meta_organico
+from src.connectors import (ga4, google_ads, hubspot, linkedin, meta_ads,
+                            meta_organico, tiktok)
 from src.connectors import youtube as youtube_conn
 from src.connectors.base import leer_historico
 from src.data import social as social_schema
@@ -97,6 +98,8 @@ _FUENTES_SOCIAL = (
      lambda d, h: meta_organico.obtener_posts_instagram(d, h)),
     ("LinkedIn", lambda d, h: linkedin.obtener(d, h),
      lambda d, h: linkedin.obtener_posts(d, h)),
+    ("TikTok", lambda d, h: tiktok.obtener(d, h),
+     lambda d, h: tiktok.obtener_posts(d, h)),
 )
 
 

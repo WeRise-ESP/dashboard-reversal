@@ -18,7 +18,7 @@ y ROAS.
 | **📈 Google Analytics** | Tráfico de todo el sitio por canal: sesiones, usuarios, vistas, conversiones. |
 | **🎯 Leads (HubSpot)** | Asociación lead↔segmento, CPL/coste-matrícula, embudo y leads recientes. |
 | **🩺 Tracking & Atribución** | Semáforo de medición, diagnóstico de fugas de atribución y checklist de corrección. |
-| **📣 Social Orgánico** | Resumen comparativo entre redes + **una pestaña por red** con KPIs contra el periodo anterior, evolución, rendimiento de publicaciones y demografía de audiencia. Solo alcance no pagado. |
+| **📣 Social Orgánico** | Resumen comparativo entre redes + **una pestaña por red** (YouTube · Facebook · Instagram · LinkedIn · TikTok) con KPIs contra el periodo anterior, evolución, rendimiento de publicaciones y demografía de audiencia. Solo alcance no pagado. |
 
 ## Puesta en marcha
 

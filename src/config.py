@@ -434,7 +434,8 @@ COLOR_PLATAFORMA = {
 # valor que un conector escriba en una casilla no soportada se convierte a nulo.
 # --------------------------------------------------------------------------- #
 
-REDES_SOCIAL: tuple[str, ...] = ("YouTube", "Facebook", "Instagram", "LinkedIn")
+REDES_SOCIAL: tuple[str, ...] = ("YouTube", "Facebook", "Instagram",
+                                 "LinkedIn", "TikTok")
 
 # Colores de identidad de cada red en los gráficos.
 #
@@ -454,13 +455,27 @@ REDES_SOCIAL: tuple[str, ...] = ("YouTube", "Facebook", "Instagram", "LinkedIn")
 # caso en ΔE 9,0 (deutan) y 8,1 (tritan), ambos por encima del mínimo de 8.
 #
 # Si tocas un color, revalida — no lo juzgues a ojo:
-#   node scripts/validate_palette.js "<hex,hex,hex,hex>" \
+#   node scripts/validate_palette.js "<hex,hex,hex,hex,hex>" \
 #        --mode light --surface "#F6F4EF" --pairs all
+#
+# Con CINCO series el margen es estrecho: el peor par (TikTok↔Instagram) queda en
+# ΔE 6,2 bajo protanopia, dentro de la banda 6-8 que el método admite SOLO si
+# hay codificación secundaria. La hay —cada red tiene su propio símbolo de
+# punto—, así que la identidad nunca depende únicamente del color. Si algún día
+# se quitan los símbolos, esta paleta deja de ser válida.
 COLOR_RED_SOCIAL = {
     "YouTube": "#E03131",    # rojo
     "Facebook": "#4DABF7",   # azul
     "Instagram": "#AE3EC9",  # morado (presente en su degradado de marca)
     "LinkedIn": "#0CA678",   # verde azulado
+    # ⚠️ TikTok NO lleva su color de marca, y es la excepción más forzada de las
+    # cinco. Su rojo/rosa (#FE2C55) queda a ΔE 7,0 del rojo de YouTube en visión
+    # normal —prácticamente la misma línea— y su cian choca con el verde azulado
+    # de LinkedIn. Con el rojo ocupado por YouTube, toda la mitad cálida del
+    # círculo de tonos es inviable: en deuteranopia, ámbar y naranja convergen
+    # con el rojo. El índigo es el único hueco que pasa las cinco
+    # comprobaciones (barrido de ~40 candidatos, 31-jul-2026).
+    "TikTok": "#4263EB",     # índigo
 }
 
 # Segundo canal de identidad, además del color: cada red lleva su propio símbolo
@@ -471,6 +486,7 @@ SIMBOLO_RED_SOCIAL = {
     "Facebook": "square",
     "Instagram": "diamond",
     "LinkedIn": "triangle-up",
+    "TikTok": "star",
 }
 
 COLOR_PLATAFORMA.update(COLOR_RED_SOCIAL)
@@ -515,12 +531,12 @@ METRICAS_POST = {
 # que el `views` de Instagram). Ver la cabecera de `meta_organico._MAPA_FB_DIA`.
 SOPORTE_METRICA_SOCIAL: dict[str, set[str]] = {
     "impresiones": {"LinkedIn"},
-    "visualizaciones": {"YouTube", "Facebook", "Instagram", "LinkedIn"},
+    "visualizaciones": {"YouTube", "Facebook", "Instagram", "LinkedIn", "TikTok"},
     "alcance": {"Instagram", "LinkedIn"},
-    "seguidores_nuevos": {"YouTube", "Facebook", "Instagram", "LinkedIn"},
-    "likes": {"YouTube", "Facebook", "Instagram", "LinkedIn"},
-    "comentarios": {"YouTube", "Facebook", "Instagram", "LinkedIn"},
-    "compartidos": {"YouTube", "Facebook", "Instagram", "LinkedIn"},
+    "seguidores_nuevos": {"YouTube", "Facebook", "Instagram", "LinkedIn", "TikTok"},
+    "likes": {"YouTube", "Facebook", "Instagram", "LinkedIn", "TikTok"},
+    "comentarios": {"YouTube", "Facebook", "Instagram", "LinkedIn", "TikTok"},
+    "compartidos": {"YouTube", "Facebook", "Instagram", "LinkedIn", "TikTok"},
     "mensajes": {"Facebook"},
 }
 
@@ -568,7 +584,23 @@ SOPORTE_METRICA_POST: dict[str, set[str]] = {
 # Analytics API v2 responde HTTP 400 al pedir `impressions` en un reporte de
 # canal: en Studio se ve, por la API no se puede sacar. YouTube se queda fuera de
 # SOPORTE_METRICA_SOCIAL["impresiones"] por derecho propio, no por precaución.
-SOPORTE_POR_VERIFICAR: set[tuple[str, str]] = set()
+# TikTok entero está aquí: la app está SIN CREAR (31-jul-2026), así que no se ha
+# podido sondear una sola métrica contra la cuenta. Lo declarado arriba sale de
+# la documentación de la Display API, y esta página ya ha demostrado cuatro
+# veces que documentación y realidad no coinciden — Facebook había retirado
+# impresiones y alcance, YouTube devuelve `age65-` en vez de `age65+`.
+#
+# Mientras esté aquí, TikTok muestra «—» en todo en vez de números que nadie ha
+# visto funcionar. Al llegar la credencial: `scripts/verificar_social.py --red
+# TikTok` dice qué responde de verdad, y se vacía este conjunto con lo que
+# confirme.
+SOPORTE_POR_VERIFICAR: set[tuple[str, str]] = {
+    ("visualizaciones", "TikTok"),
+    ("seguidores_nuevos", "TikTok"),
+    ("likes", "TikTok"),
+    ("comentarios", "TikTok"),
+    ("compartidos", "TikTok"),
+}
 
 # Métrica que se usa como KPI principal comparable entre las 4 redes. NO se usa
 # «impresiones» porque Instagram ya no la publica (ver nota de arriba).

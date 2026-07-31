@@ -289,6 +289,12 @@ _PERFIL_SOCIAL = {
     "Instagram": dict(views=5100, followers=420, seg=13, eng=0.002, msg=0, posts_mes=10),
     "YouTube":   dict(views=180,  followers=5,   seg=1,  eng=0.008, msg=0, posts_mes=7),
     "Facebook":  dict(views=7,    followers=14,  seg=1,  eng=0.010, msg=0, posts_mes=8),
+    # TikTok: cuenta recién abierta, sin credenciales todavía (31-jul-2026). Se
+    # le da un volumen pequeño y un engagement alto, que es el patrón de la red.
+    # Ojo: hoy la regla de nulos anula TODAS sus métricas al normalizar, porque
+    # `config.SOPORTE_POR_VERIFICAR` la tiene entera sin verificar — estos
+    # números no se ven hasta que se sondee la API real.
+    "TikTok":    dict(views=140,  followers=60,  seg=3,  eng=0.055, msg=0, posts_mes=12),
 }
 
 
@@ -356,6 +362,20 @@ _TITULOS_SOCIAL = {
         ("3 hábitos que envejecen tu piel", "Reel"),
         ("Tu consulta también puede hacer esto", "Imagen"),
         ("Desayuno para estabilizar la glucosa", "Reel"),
+    ],
+    "TikTok": [
+        ("3 señales de que envejeces más rápido de lo normal", "Vídeo"),
+        ("Lo que tu médico no te cuenta sobre el colesterol", "Vídeo"),
+        ("Healthspan explicado en 30 segundos", "Vídeo"),
+        ("El error nº1 al entrenar después de los 40", "Vídeo"),
+        ("¿Suplementos? Esto es lo que sí funciona", "Vídeo"),
+        ("Cómo dormir mejor sin pastillas", "Vídeo"),
+        ("La verdad sobre el ayuno intermitente", "Vídeo"),
+        ("Menopausia: lo que nadie te explica", "Vídeo"),
+        ("Tu edad biológica no es tu edad real", "Vídeo"),
+        ("5 hábitos que suman años de vida sana", "Vídeo"),
+        ("Por qué el músculo es tu mejor seguro de salud", "Vídeo"),
+        ("Lo que dice la ciencia sobre la longevidad", "Vídeo"),
     ],
     "LinkedIn": [
         ("La longevidad como nueva especialidad clínica", "Artículo"),

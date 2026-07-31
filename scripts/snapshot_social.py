@@ -69,7 +69,7 @@ RAIZ = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(RAIZ))
 
 from src import config  # noqa: E402
-from src.connectors import linkedin, meta_organico, youtube  # noqa: E402
+from src.connectors import linkedin, meta_organico, tiktok, youtube  # noqa: E402
 from src.connectors.base import (  # noqa: E402
     HISTORICO_DIR,
     _leer_secreto,
@@ -110,6 +110,11 @@ FUENTES = (
            "seguidores: 30 días"),
     Fuente("LinkedIn", "linkedin", "social_linkedin_diario",
            linkedin._api_diario, "12 meses"),
+    # TikTok no tiene histórico que rellenar: su API no da series diarias, así
+    # que cada ejecución añade la foto de hoy y la serie se construye desde
+    # cero. Lo que no se capture no existe en ningún sitio.
+    Fuente("TikTok", "tiktok", "social_tiktok_diario",
+           tiktok._api_diario, "sin histórico: solo la foto del día"),
 )
 
 CLAVES_DEMOGRAFIA = ("fecha", "red", "dimension", "categoria")

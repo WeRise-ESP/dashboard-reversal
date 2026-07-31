@@ -121,8 +121,25 @@ Tema de marca: verde `#0E7C52` (`src/config.py` → `TEMA`).
   `page_fans_*` y `post_impressions*`. Lo que sí da y nadie más: `post_clicks`
   y `post_reactions_by_type_total`. Por eso su ranking se ordena por
   interacciones y no por tasa de engagement (`social_analisis.criterio_ranking`).
+- **TikTok no da series diarias.** La Display API devuelve el estado ACTUAL de
+  la cuenta y las métricas acumuladas de cada vídeo; no existe «visualizaciones
+  del día 12». Su serie diaria NO se pide, se CONSTRUYE acumulando una foto al
+  día con el job — así que un periodo anterior a la primera captura no tiene
+  datos y no hay forma de rellenarlo. Las métricas diarias de verdad y la
+  demografía solo las da la Business API, que va por revisión aparte.
 - **LinkedIn no publica edad ni género.** Da cargo, función, sector, tamaño de
   empresa y país. Hay un test que lo fija.
+- **TikTok está ENTERO en `SOPORTE_POR_VERIFICAR`** (31-jul-2026): su app no
+  existe todavía, así que nada se ha sondeado y todas sus métricas salen a «—».
+  Lo declarado en el conector viene de la documentación, que en esta página ya
+  ha fallado cuatro veces. Se vacía con lo que confirme
+  `scripts/verificar_social.py --red TikTok`.
+- **La paleta está validada para CINCO series, y el margen es estrecho.** El
+  peor par (TikTok↔Instagram) queda en ΔE 6,2 bajo protanopia, admisible solo
+  porque cada red lleva su propio símbolo de punto. Si se quitan los símbolos,
+  la paleta deja de ser válida. TikTok NO lleva su color de marca: su rojo está
+  a ΔE 7,0 del de YouTube y, con el rojo ocupado, toda la mitad cálida del
+  círculo de tonos es inviable en deuteranopia.
 - **Los umbrales de muestra están en `config`** (`MIN_PUBLICACIONES_BOTTOM`,
   `MIN_PUBLICACIONES_FORMATO`), no repartidos: el volumen está creciendo.
 

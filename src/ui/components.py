@@ -14,6 +14,7 @@ from src.ui.theme import _es_nulo, badge_origen, eur, num, pct
 
 
 import base64 as _base64
+from importlib.metadata import version as _version
 from pathlib import Path as _Path
 
 _LOGO_SVG = _Path(__file__).resolve().parents[2] / "assets" / "reversal-logo.svg"
@@ -118,6 +119,14 @@ def aviso_origenes(origenes: dict, nota: str | None = None) -> None:
             "Estás viendo **datos de ejemplo**. Configura credenciales en "
             "`.streamlit/secrets.toml` o rellena la caché para ver datos reales."
         )
+
+    # Versiones del entorno que EJECUTA la app, no las del requirements. Sin
+    # esto, un fallo que solo se ve en el servidor no hay forma de acotarlo:
+    # se puede fijar una versión, redesplegar y no llegar a saber si llegó a
+    # instalarse. Pasó el 31-jul-2026 con el «None» de las celdas nulas.
+    st.sidebar.caption(
+        f"streamlit {st.__version__} · pandas {pd.__version__} · "
+        f"pyarrow {_version('pyarrow')}")
 
 
 _CSS_TABLA = f"""

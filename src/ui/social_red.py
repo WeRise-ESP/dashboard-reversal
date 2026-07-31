@@ -335,8 +335,8 @@ def bloque_contenido(posts: pd.DataFrame, red: str) -> None:
 
 def bloque_audiencia(demografia: pd.DataFrame, red: str, hasta) -> None:
     if red not in sd.UNIDAD_POR_RED:
-        st.info("Facebook no publica demografía de audiencia: Meta retiró esas "
-                "métricas de las Páginas en 2025 y no hay sustituto.")
+        st.info(sd.MOTIVO_SIN_DEMOGRAFIA.get(
+            red, f"{red} no publica demografía de audiencia por API."))
         return
 
     foto = sd.ultima_foto(demografia, red, hasta)

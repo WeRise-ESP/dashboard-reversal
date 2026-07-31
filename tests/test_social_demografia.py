@@ -105,3 +105,23 @@ def test_normalizar_mantiene_dtype_fecha_coherente():
          "categoria": "45-54", "valor": 50},
     ]))
     assert d3["fecha"].dtype == object
+
+
+def test_cada_red_sin_demografia_explica_SU_motivo():
+    """El mensaje estaba escrito a medida de Facebook y se le enseñaba también
+    a TikTok, que no da demografía por una razón distinta. Ninguna red debe
+    ver el nombre de otra."""
+    from src import config
+    from src.data import social_demografia as sd
+
+    sin_demografia = [r for r in config.REDES_SOCIAL if r not in sd.UNIDAD_POR_RED]
+    assert sin_demografia, "si todas dan demografía, este test sobra"
+
+    for red in sin_demografia:
+        motivo = sd.MOTIVO_SIN_DEMOGRAFIA.get(red)
+        assert motivo, f"{red} no da demografía y no explica por qué"
+        for otra in config.REDES_SOCIAL:
+            if otra != red:
+                assert otra not in motivo, (
+                    f"el mensaje de {red} menciona a {otra}"
+                )

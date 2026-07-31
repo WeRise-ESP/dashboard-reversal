@@ -34,6 +34,18 @@ UNIDAD_POR_RED = {
     "LinkedIn": "seguidores",
 }
 
+# Por qué NO hay demografía, red por red. El motivo importa: no es lo mismo
+# «existió y la retiraron» que «existe pero por otra API». Sin esto, la única
+# forma de decirlo era un mensaje genérico, y el que había estaba escrito a
+# medida de Facebook y se le enseñaba también a TikTok.
+MOTIVO_SIN_DEMOGRAFIA = {
+    "Facebook": ("Facebook no publica demografía de audiencia: Meta retiró "
+                 "esas métricas de las Páginas en 2025 y no hay sustituto."),
+    "TikTok": ("TikTok no publica demografía por la Display API. La da la "
+               "Business API, que exige cuenta Business y una revisión "
+               "aparte."),
+}
+
 _ETIQUETAS = {
     "seguidores": "seguidores (personas que te siguen)",
     "pct_visualizaciones": "% de las visualizaciones",

@@ -180,7 +180,8 @@ def bloque_kpis(kpis: pd.DataFrame, red: str) -> None:
                    "Se irá llenando conforme el job diario acumule días.")
 
 
-def bloque_evolucion(diario: pd.DataFrame, red: str, key: str) -> None:
+def bloque_evolucion(diario: pd.DataFrame, red: str, key: str,
+                     posts: pd.DataFrame | None = None) -> None:
     from src.data import social
 
     metricas = metricas_de_la_red(red)
@@ -190,13 +191,31 @@ def bloque_evolucion(diario: pd.DataFrame, red: str, key: str) -> None:
 
     etiquetas = {e: m for m, e in metricas.items()}
     elegida = st.selectbox("Métrica", list(etiquetas), key=key)
-    serie = social.serie_diaria(diario[diario["red"] == red], etiquetas[elegida])
+    metrica = etiquetas[elegida]
+
+    # Sin serie diaria, el eje X pasa a ser la FECHA DE PUBLICACIÓN. Si no,
+    # este bloque diría «sin datos» justo debajo de una tabla de KPIs llena y
+    # de una lista de publicaciones con sus números.
+    por_publicacion = red in config.REDES_SIN_SERIE_DIARIA and metrica != "seguidores_total"
+    if por_publicacion:
+        serie = sa.serie_de_publicaciones(posts, red, metrica)
+        titulo = f"{elegida} por fecha de publicación"
+    else:
+        serie = social.serie_diaria(diario[diario["red"] == red], metrica)
+        titulo = f"{elegida} por día"
+
     if serie.empty:
         st.info(f"Sin datos de «{elegida}» en el periodo.")
         return
+
     ui.linea_temporal(serie, x="fecha", y="valor", color="red",
-                      titulo=f"{elegida} por día", y_label=elegida,
+                      titulo=titulo, y_label=elegida,
                       simbolos=config.SIMBOLO_RED_SOCIAL)
+    if por_publicacion:
+        st.caption(
+            f"Cada punto es el acumulado de lo publicado ese día, no lo que "
+            f"ocurrió ese día: {red} no da métricas diarias. Los días sin "
+            "publicar no aparecen, en vez de salir a cero.")
 
 
 def _enlace(titulo, url) -> str:
@@ -378,7 +397,7 @@ def pestana(red: str, diario: pd.DataFrame, posts: pd.DataFrame,
     bloque_kpis(kpis, red)
 
     st.subheader("Evolución")
-    bloque_evolucion(diario, red, key=f"metrica_{red}")
+    bloque_evolucion(diario, red, key=f"metrica_{red}", posts=posts)
 
     st.subheader("Contenido")
     bloque_contenido(posts, red)

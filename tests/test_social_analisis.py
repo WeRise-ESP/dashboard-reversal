@@ -149,3 +149,38 @@ def test_las_redes_con_serie_diaria_no_cambian():
     k = sa.comparar_kpis(diario, diario.iloc[:0], "YouTube",
                          posts=posts, posts_anterior=posts.iloc[:0])
     assert k[k["metrica"] == "visualizaciones"].iloc[0]["actual"] == 100
+
+
+def test_la_serie_por_publicacion_no_inventa_ceros_en_los_dias_sin_publicar():
+    """Un día sin publicar no es un día con cero visualizaciones: es un día
+    del que esa red no dice nada. Dibujarlo a cero haría parecer una caída."""
+    from datetime import date
+
+    import pandas as pd
+
+    from src.data import social_analisis as sa
+
+    posts = pd.DataFrame([
+        {"fecha": date(2026, 6, 2), "red": "TikTok", "visualizaciones": 332},
+        {"fecha": date(2026, 6, 19), "red": "TikTok", "visualizaciones": 1190},
+    ])
+    s = sa.serie_de_publicaciones(posts, "TikTok", "visualizaciones")
+
+    assert len(s) == 2, "solo los días con publicación, no el rango relleno"
+    assert list(s["valor"]) == [332, 1190]
+
+
+def test_dos_publicaciones_el_mismo_dia_se_suman():
+    from datetime import date
+
+    import pandas as pd
+
+    from src.data import social_analisis as sa
+
+    posts = pd.DataFrame([
+        {"fecha": date(2026, 6, 2), "red": "TikTok", "visualizaciones": 100},
+        {"fecha": date(2026, 6, 2), "red": "TikTok", "visualizaciones": 50},
+    ])
+    s = sa.serie_de_publicaciones(posts, "TikTok", "visualizaciones")
+
+    assert len(s) == 1 and s.iloc[0]["valor"] == 150

@@ -70,6 +70,32 @@ def kpis_de_publicaciones(posts: pd.DataFrame, red: str) -> dict[str, float]:
     return totales
 
 
+def serie_de_publicaciones(posts: pd.DataFrame, red: str,
+                           metrica: str) -> pd.DataFrame:
+    """Serie (fecha, red, valor) por FECHA DE PUBLICACIÓN, no por día de
+    actividad.
+
+    El sustituto de la serie diaria en las redes que no la tienen. Cada punto es
+    el acumulado de lo publicado ese día, así que el eje X son fechas de
+    publicación y hay huecos en los días sin publicar — no ceros. Ver
+    `config.REDES_SIN_SERIE_DIARIA`.
+    """
+    vacia = pd.DataFrame(columns=["fecha", "red", "valor"])
+    if posts is None or posts.empty or metrica not in posts.columns:
+        return vacia
+    d = posts[posts["red"] == red]
+    if d.empty:
+        return vacia
+
+    d = d[["fecha", "red", metrica]].rename(columns={metrica: "valor"})
+    d = d[d["valor"].notna()]
+    if d.empty:
+        return vacia
+    return (d.groupby(["fecha", "red"], as_index=False)["valor"]
+            .sum(min_count=1)
+            .sort_values("fecha"))
+
+
 def comparar_kpis(actual: pd.DataFrame, anterior: pd.DataFrame,
                   red: str, posts: pd.DataFrame | None = None,
                   posts_anterior: pd.DataFrame | None = None) -> pd.DataFrame:

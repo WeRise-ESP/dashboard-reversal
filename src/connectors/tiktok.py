@@ -166,6 +166,30 @@ def _peticion(metodo: str, ruta: str, token: str, campos: str,
     return datos.get("data", {})
 
 
+def cuenta() -> dict:
+    """Identidad de la cuenta autorizada: nombre y seguidores actuales.
+
+    TikTok es la ÚNICA de las cinco redes donde tiene sentido: se autoriza por
+    OAuth de la cuenta misma, así que el token identifica a un titular concreto
+    y puede equivocarse de cuenta sin que nada más lo delate. En Meta el token
+    es de Página y en YouTube de canal — ahí la cuenta va implícita en el ID que
+    está en `config`, y no hay nada que confirmar.
+
+    Devuelve {} si no hay credenciales o la API falla: es un adorno de
+    cabecera, nunca debe tumbar la pestaña.
+    """
+    creds = _leer_secreto("tiktok")
+    if not creds:
+        return {}
+    try:
+        datos = _peticion("GET", "user/info/", _token(creds), _CAMPOS_USUARIO)
+    except Exception:
+        return {}
+    usuario = datos.get("user", {})
+    return {"nombre": usuario.get("display_name"),
+            "seguidores": usuario.get("follower_count")}
+
+
 def _api_diario(creds: dict, desde, hasta) -> pd.DataFrame:
     """UNA fila con la foto de hoy: seguidores actuales de la cuenta.
 

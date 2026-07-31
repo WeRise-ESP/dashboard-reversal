@@ -77,6 +77,36 @@ def frases_titular(kpis: pd.DataFrame, red: str) -> list[str]:
     return frases
 
 
+@st.cache_data(ttl=900, show_spinner=False)
+def _cuenta_conectada(red: str) -> dict:
+    """Cuenta que ha autorizado la conexión, si la red la identifica.
+
+    Solo TikTok: es la única que se autoriza por OAuth de la cuenta misma, así
+    que el token puede apuntar a un titular equivocado sin que nada más lo
+    delate. Meta va con token de Página y YouTube con el ID de canal de
+    `config`, donde la cuenta es fija y no hay nada que confirmar.
+
+    Cacheado 15 min: es una llamada extra a la API y el nombre no cambia.
+    """
+    if red != "TikTok":
+        return {}
+    from src.connectors import tiktok
+
+    return tiktok.cuenta()
+
+
+def bloque_cuenta(red: str) -> None:
+    """Una línea con la cuenta conectada. Silenciosa si la red no la da."""
+    datos = _cuenta_conectada(red)
+    nombre = datos.get("nombre")
+    if not nombre:
+        return
+    # Sin negritas ni markdown alrededor del nombre: viene de una API y un
+    # asterisco o un guion bajo descolocarían el renderizado.
+    st.caption(f"Cuenta conectada: {nombre} · "
+               f"{num_o_guion(datos.get('seguidores'))} seguidores")
+
+
 def bloque_titular(kpis: pd.DataFrame, red: str) -> None:
     frases = frases_titular(kpis, red)
     if frases:
@@ -304,6 +334,7 @@ def bloque_audiencia(demografia: pd.DataFrame, red: str, hasta) -> None:
 def pestana(red: str, diario: pd.DataFrame, posts: pd.DataFrame,
             demografia: pd.DataFrame, kpis: pd.DataFrame, hasta) -> None:
     """Los cinco bloques de una red, siempre en el mismo orden."""
+    bloque_cuenta(red)
     bloque_titular(kpis, red)
 
     st.subheader("Rendimiento")

@@ -165,3 +165,34 @@ def test_tiktok_da_metricas_de_video_pero_no_altas_de_seguidores():
     assert not config.soporta_metrica("seguidores_nuevos", "TikTok"), (
         "la Display API no da altas de seguidores por día, solo el total actual"
     )
+
+
+def test_la_cuenta_conectada_no_tumba_la_pestana_si_la_api_falla(monkeypatch):
+    """Es un adorno de cabecera: si la API cae, la pestaña tiene que seguir
+    dibujándose con los datos de caché o de histórico."""
+    monkeypatch.setattr(tt, "_leer_secreto", lambda s: {"client_key": "k"})
+    monkeypatch.setattr(tt, "_token", lambda c: (_ for _ in ()).throw(
+        RuntimeError("la API está caída")))
+
+    assert tt.cuenta() == {}
+
+
+def test_la_cuenta_conectada_devuelve_nombre_y_seguidores(monkeypatch):
+    """Demuestra el scope user.info.basic en pantalla: sin esto, `display_name`
+    se pedía a la API y no se pintaba en ningún sitio."""
+    monkeypatch.setattr(tt, "_leer_secreto", lambda s: {"client_key": "k"})
+    monkeypatch.setattr(tt, "_token", lambda c: "tok")
+    monkeypatch.setattr(tt, "_peticion",
+                        lambda *a, **k: {"user": {"display_name": "Reversal",
+                                                  "follower_count": 13}})
+
+    assert tt.cuenta() == {"nombre": "Reversal", "seguidores": 13}
+
+
+def test_solo_tiktok_muestra_cuenta_conectada():
+    """Las demás redes van con token de Página o ID de canal fijo: ahí la
+    cuenta es implícita y una línea de «cuenta conectada» sobraría."""
+    from src.ui import social_red
+
+    for red in ("YouTube", "Facebook", "Instagram", "LinkedIn"):
+        assert social_red._cuenta_conectada(red) == {}

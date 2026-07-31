@@ -207,7 +207,13 @@ def tabla_ordenable(df: pd.DataFrame, columnas: list[dict],
                  "width": c.get("ancho")}
         tipo = c.get("tipo", "texto")
         if tipo == "numero":
-            config[c["key"]] = st.column_config.NumberColumn(format="localized", **comun)
+            # Formato automático, NO "localized": con `localized` una celda nula
+            # se pinta con el texto «None» en vez de quedarse vacía. Comprobado
+            # el 31-jul-2026 con streamlit 1.59.1 · pandas 3.0.3 · pyarrow
+            # 24.0.0 en local Y en el servidor —mismas versiones, mismo
+            # resultado—, y con los datos llegando a Arrow como null de verdad.
+            # El automático agrupa los miles igual y sí respeta el nulo.
+            config[c["key"]] = st.column_config.NumberColumn(**comun)
         elif tipo == "decimal":
             config[c["key"]] = st.column_config.NumberColumn(format="%.2f", **comun)
         elif tipo == "porcentaje":

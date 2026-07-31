@@ -601,6 +601,18 @@ SOPORTE_METRICA_POST: dict[str, set[str]] = {
 # la API no ha dicho.
 SOPORTE_POR_VERIFICAR: set[tuple[str, str]] = set()
 
+# Redes cuya API NO da serie diaria de métricas de flujo. Solo publican el
+# acumulado de cada publicación, así que el total del periodo hay que sacarlo
+# sumando publicaciones.
+#
+# Y ese total NO significa lo mismo: es «visualizaciones totales de lo PUBLICADO
+# en el periodo», no «visualizaciones ocurridas DURANTE el periodo». Un vídeo de
+# hace un año que hoy se vuelve viral no aparece; uno publicado ayer aporta todo
+# su acumulado. Por eso el dato se muestra en la pestaña de la red —con la
+# advertencia escrita al lado— pero NO entra en las comparativas entre redes del
+# Resumen, donde falsearía la única métrica que iguala a las cinco.
+REDES_SIN_SERIE_DIARIA: frozenset[str] = frozenset({"TikTok"})
+
 # Métrica que se usa como KPI principal comparable entre las 4 redes. NO se usa
 # «impresiones» porque Instagram ya no la publica (ver nota de arriba).
 METRICA_COMPARABLE = "visualizaciones"

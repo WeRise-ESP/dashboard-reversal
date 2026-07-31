@@ -41,8 +41,38 @@ def _total(diario: pd.DataFrame, red: str, metrica: str) -> float | None:
     return None if pd.isna(total) else float(total)
 
 
+def kpis_de_publicaciones(posts: pd.DataFrame, red: str) -> dict[str, float]:
+    """Total del periodo sumando publicaciones, para las redes sin serie diaria.
+
+    Es el único camino en TikTok: su Display API da el acumulado de cada vídeo y
+    ningún endpoint de «visualizaciones del día 12». Ver
+    `config.REDES_SIN_SERIE_DIARIA`, donde está escrito qué significa —y qué NO
+    significa— el número que sale de aquí.
+
+    Solo métricas de flujo: los stocks (`seguidores_total`) no se suman entre
+    publicaciones porque no pertenecen a una publicación.
+    """
+    flujo = ("visualizaciones", "likes", "comentarios", "compartidos")
+    if posts is None or posts.empty:
+        return {}
+    d = posts[posts["red"] == red]
+    if d.empty:
+        return {}
+
+    totales = {}
+    for m in flujo:
+        if m not in d.columns:
+            continue
+        # `min_count=1` mantiene la regla: todo nulo suma nulo, no 0.
+        total = d[m].sum(min_count=1)
+        if not pd.isna(total):
+            totales[m] = float(total)
+    return totales
+
+
 def comparar_kpis(actual: pd.DataFrame, anterior: pd.DataFrame,
-                  red: str) -> pd.DataFrame:
+                  red: str, posts: pd.DataFrame | None = None,
+                  posts_anterior: pd.DataFrame | None = None) -> pd.DataFrame:
     """Tabla `metrica · etiqueta · actual · anterior · delta_pct` para una red.
 
     Solo incluye las métricas que ESA red publica: las demás no aparecen, ni a
@@ -52,12 +82,21 @@ def comparar_kpis(actual: pd.DataFrame, anterior: pd.DataFrame,
     cero: dividir por cero daría un crecimiento del infinito por ciento, que es
     peor que no decir nada.
     """
+    # En las redes sin serie diaria el total del periodo sale de sumar
+    # publicaciones; si no, la tabla saldría entera vacía al lado de una lista
+    # de vídeos con sus números a la vista, que es lo que pasaba con TikTok.
+    de_posts = kpis_de_publicaciones(posts, red) if (
+        posts is not None and red in config.REDES_SIN_SERIE_DIARIA) else {}
+    de_posts_ant = kpis_de_publicaciones(posts_anterior, red) if (
+        posts_anterior is not None
+        and red in config.REDES_SIN_SERIE_DIARIA) else {}
+
     filas = []
     for metrica, etiqueta in config.METRICAS_SOCIAL.items():
         if not config.soporta_metrica(metrica, red):
             continue
-        act = _total(actual, red, metrica)
-        ant = _total(anterior, red, metrica)
+        act = de_posts.get(metrica, _total(actual, red, metrica))
+        ant = de_posts_ant.get(metrica, _total(anterior, red, metrica))
         delta = None
         if act is not None and ant not in (None, 0):
             delta = round((act - ant) / ant * 100, 1)

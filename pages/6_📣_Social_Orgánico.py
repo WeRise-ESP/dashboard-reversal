@@ -352,6 +352,8 @@ for tab, red in zip(tabs_red, config.REDES_SOCIAL):
                 "pestaña es inventado: sirve para comprobar la estructura, no "
                 "para tomar decisiones."
             )
-        kpis = social_analisis.comparar_kpis(datos.diario, datos_ant.diario, red)
+        kpis = social_analisis.comparar_kpis(
+            datos.diario, datos_ant.diario, red,
+            posts=datos.posts, posts_anterior=datos_ant.posts)
         social_red.pestana(red, datos.diario, datos.posts,
                            datos.demografia, kpis, hasta)

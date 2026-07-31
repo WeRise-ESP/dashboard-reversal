@@ -101,3 +101,51 @@ def test_por_formato_omite_los_formatos_con_pocas_publicaciones():
     r = sa.por_formato(_posts("Instagram", filas), "Instagram")
     assert set(r["tipo"]) == {"Reel"}
     assert int(r.iloc[0]["n"]) == config.MIN_PUBLICACIONES_FORMATO
+
+
+def test_una_red_sin_serie_diaria_saca_los_kpis_de_sus_publicaciones():
+    """TikTok no tiene serie diaria de flujo, así que la tabla de Rendimiento
+    salía entera vacía al lado de una lista de vídeos con sus números a la
+    vista. El total sale de sumar publicaciones."""
+    from datetime import date
+
+    import pandas as pd
+
+    from src import config
+    from src.data import social_analisis as sa
+
+    assert "TikTok" in config.REDES_SIN_SERIE_DIARIA
+
+    diario = pd.DataFrame([{"fecha": date(2026, 7, 31), "red": "TikTok",
+                            "seguidores_total": 13}])
+    posts = pd.DataFrame([
+        {"red": "TikTok", "post_id": "a", "visualizaciones": 249, "likes": 1,
+         "comentarios": 0, "compartidos": 0},
+        {"red": "TikTok", "post_id": "b", "visualizaciones": 1039, "likes": 20,
+         "comentarios": 0, "compartidos": 8},
+    ])
+
+    k = sa.comparar_kpis(diario, diario.iloc[:0], "TikTok",
+                         posts=posts, posts_anterior=posts.iloc[:0])
+    fila = k[k["metrica"] == "visualizaciones"].iloc[0]
+    assert fila["actual"] == 1288, "debería sumar las visualizaciones de los 2"
+    assert k[k["metrica"] == "compartidos"].iloc[0]["actual"] == 8
+
+
+def test_las_redes_con_serie_diaria_no_cambian():
+    """El total de las demás sigue saliendo del diario aunque se le pasen
+    publicaciones: mezclarlo cambiaría el significado de la métrica."""
+    from datetime import date
+
+    import pandas as pd
+
+    from src.data import social_analisis as sa
+
+    diario = pd.DataFrame([{"fecha": date(2026, 7, 30), "red": "YouTube",
+                            "visualizaciones": 100}])
+    posts = pd.DataFrame([{"red": "YouTube", "post_id": "x",
+                           "visualizaciones": 99999}])
+
+    k = sa.comparar_kpis(diario, diario.iloc[:0], "YouTube",
+                         posts=posts, posts_anterior=posts.iloc[:0])
+    assert k[k["metrica"] == "visualizaciones"].iloc[0]["actual"] == 100

@@ -141,7 +141,7 @@ def bloque_titular(kpis: pd.DataFrame, red: str) -> None:
         ui.resumen_ejecutivo(" ".join(frases))
 
 
-def bloque_kpis(kpis: pd.DataFrame) -> None:
+def bloque_kpis(kpis: pd.DataFrame, red: str) -> None:
     """Tabla `Métrica · Periodo · Anterior · Δ`.
 
     Usa `num_o_guion`, nunca `num()`: un nulo aquí significa «no hay dato del
@@ -165,6 +165,15 @@ def bloque_kpis(kpis: pd.DataFrame) -> None:
          "ayuda": "Variación frente al periodo anterior. Vacío = no hay "
                   "histórico con el que comparar."},
     ])
+
+    if red in config.REDES_SIN_SERIE_DIARIA:
+        st.caption(
+            f"⚠️ {red} no publica métricas por día, así que estas cifras son el "
+            "**acumulado de las publicaciones del periodo**, no la actividad "
+            "ocurrida dentro de él. Un vídeo antiguo que se vuelva viral hoy no "
+            "aparece aquí, y uno publicado ayer aporta todas sus "
+            "visualizaciones. Por eso no entran en las comparativas entre redes "
+            "del Resumen.")
 
     if kpis["anterior"].isna().all():
         st.caption("No hay histórico del periodo anterior para comparar. "
@@ -366,7 +375,7 @@ def pestana(red: str, diario: pd.DataFrame, posts: pd.DataFrame,
     bloque_titular(kpis, red)
 
     st.subheader("Rendimiento")
-    bloque_kpis(kpis)
+    bloque_kpis(kpis, red)
 
     st.subheader("Evolución")
     bloque_evolucion(diario, red, key=f"metrica_{red}")

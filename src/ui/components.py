@@ -220,10 +220,15 @@ def tabla_ordenable(df: pd.DataFrame, columnas: list[dict],
             config[c["key"]] = st.column_config.TextColumn(**comun)
 
     # Una columna declarada numérica tiene que LLEGAR numérica. Si todos sus
-    # valores son nulos, pandas la deja en dtype `object` y `NumberColumn` la
-    # trata como texto: escribe literalmente «None» en cada celda en vez de
-    # dejarla vacía, que es justo lo contrario de la regla nulo≠cero. Pasó en la
-    # pestaña de TikTok, cuya serie diaria solo tiene seguidores.
+    # valores son nulos, pandas la deja en dtype `object`, que Arrow serializa
+    # como tipo `null` entero en vez de como un `double` con huecos — y ahí el
+    # frontend ya no la trata como número.
+    #
+    # Ojo si vuelve a aparecer «None» escrito en una celda: NO es cosa del
+    # dtype. `float64`+NaN y `Float64`+pd.NA serializan idénticos (ambos dan
+    # null de verdad), así que cambiar entre ellos no arregla nada. Y el bundle
+    # del frontend usa «—» para los nulos, no «None». Si se ve «None», mira la
+    # VERSIÓN de Streamlit que corre en el servidor antes que este código.
     datos = df[[c["key"] for c in presentes]].copy()
     for c in presentes:
         if c.get("tipo") in ("numero", "decimal", "porcentaje"):

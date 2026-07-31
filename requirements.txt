@@ -1,5 +1,10 @@
 # Core
-streamlit>=1.36
+# Streamlit va FIJADO a propósito. Con `>=` cada redespliegue de Streamlit Cloud
+# puede traer otra versión, y el renderizado de las tablas cambia entre ellas:
+# el 31-jul-2026 la app desplegada escribía «None» en las celdas nulas mientras
+# que en local (1.59.1) salían vacías, con el mismo código y los mismos datos.
+# Un dashboard que se ve distinto según el día que redesplegó no es depurable.
+streamlit==1.59.1
 pandas>=2.1
 numpy>=1.26
 plotly>=5.20

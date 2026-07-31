@@ -78,6 +78,9 @@ jobs:
           LINKEDIN_CLIENT_ID: ${{ secrets.LINKEDIN_CLIENT_ID }}
           LINKEDIN_CLIENT_SECRET: ${{ secrets.LINKEDIN_CLIENT_SECRET }}
           LINKEDIN_REFRESH_TOKEN: ${{ secrets.LINKEDIN_REFRESH_TOKEN }}
+          TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
+          TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
+          TIKTOK_REFRESH_TOKEN: ${{ secrets.TIKTOK_REFRESH_TOKEN }}
         run: |
           mkdir -p .streamlit
           {
@@ -96,6 +99,15 @@ jobs:
             echo "client_secret = \"${LINKEDIN_CLIENT_SECRET}\""
             echo "refresh_token = \"${LINKEDIN_REFRESH_TOKEN}\""
             echo 'version = "202506"'
+            echo
+            # TikTok es el que más urge de los cinco: su Display API no da
+            # series diarias, así que su histórico SOLO existe si este job
+            # captura una foto al día. Un día sin correr es un día perdido
+            # para siempre, sin relleno hacia atrás posible.
+            echo '[tiktok]'
+            echo "client_key = \"${TIKTOK_CLIENT_KEY}\""
+            echo "client_secret = \"${TIKTOK_CLIENT_SECRET}\""
+            echo "refresh_token = \"${TIKTOK_REFRESH_TOKEN}\""
           } > .streamlit/secrets.toml
 
       - name: Capturar el histórico

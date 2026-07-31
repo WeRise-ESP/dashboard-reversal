@@ -219,8 +219,18 @@ def tabla_ordenable(df: pd.DataFrame, columnas: list[dict],
         else:
             config[c["key"]] = st.column_config.TextColumn(**comun)
 
+    # Una columna declarada numérica tiene que LLEGAR numérica. Si todos sus
+    # valores son nulos, pandas la deja en dtype `object` y `NumberColumn` la
+    # trata como texto: escribe literalmente «None» en cada celda en vez de
+    # dejarla vacía, que es justo lo contrario de la regla nulo≠cero. Pasó en la
+    # pestaña de TikTok, cuya serie diaria solo tiene seguidores.
+    datos = df[[c["key"] for c in presentes]].copy()
+    for c in presentes:
+        if c.get("tipo") in ("numero", "decimal", "porcentaje"):
+            datos[c["key"]] = pd.to_numeric(datos[c["key"]], errors="coerce")
+
     extra = {"height": altura} if altura else {}
-    st.dataframe(df[[c["key"] for c in presentes]], column_config=config,
+    st.dataframe(datos, column_config=config,
                  hide_index=True, width="stretch", **extra)
 
 

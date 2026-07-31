@@ -57,7 +57,8 @@ _BASE = "https://open.tiktokapis.com/v2"
 # Campos del perfil. `follower_count` y `likes_count` son totales ACTUALES, no
 # del periodo: por eso alimentan `seguidores_total` (un stock) y no una métrica
 # de flujo.
-_CAMPOS_USUARIO = "open_id,display_name,follower_count,likes_count,video_count"
+_CAMPOS_USUARIO = ("open_id,username,display_name,profile_web_link,is_verified,"
+                   "follower_count,likes_count,video_count")
 
 # Campos por vídeo. Todos son acumulados desde que se publicó, igual que en
 # Instagram y Facebook — no del periodo consultado.
@@ -167,7 +168,7 @@ def _peticion(metodo: str, ruta: str, token: str, campos: str,
 
 
 def cuenta() -> dict:
-    """Identidad de la cuenta autorizada: nombre y seguidores actuales.
+    """Identidad de la cuenta autorizada: @usuario, nombre, enlace y seguidores.
 
     TikTok es la ÚNICA de las cinco redes donde tiene sentido: se autoriza por
     OAuth de la cuenta misma, así que el token identifica a un titular concreto
@@ -187,6 +188,9 @@ def cuenta() -> dict:
         return {}
     usuario = datos.get("user", {})
     return {"nombre": usuario.get("display_name"),
+            "usuario": usuario.get("username"),
+            "enlace": usuario.get("profile_web_link"),
+            "verificada": usuario.get("is_verified"),
             "seguidores": usuario.get("follower_count")}
 
 

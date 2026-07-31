@@ -183,10 +183,17 @@ def test_la_cuenta_conectada_devuelve_nombre_y_seguidores(monkeypatch):
     monkeypatch.setattr(tt, "_leer_secreto", lambda s: {"client_key": "k"})
     monkeypatch.setattr(tt, "_token", lambda c: "tok")
     monkeypatch.setattr(tt, "_peticion",
-                        lambda *a, **k: {"user": {"display_name": "Reversal",
-                                                  "follower_count": 13}})
+                        lambda *a, **k: {"user": {
+                            "display_name": "Reversal",
+                            "username": "reversal.institute",
+                            "profile_web_link": "https://tiktok.com/@x",
+                            "is_verified": False,
+                            "follower_count": 13}})
 
-    assert tt.cuenta() == {"nombre": "Reversal", "seguidores": 13}
+    c = tt.cuenta()
+    assert c["nombre"] == "Reversal"
+    assert c["usuario"] == "reversal.institute"
+    assert c["seguidores"] == 13
 
 
 def test_solo_tiktok_muestra_cuenta_conectada():
@@ -196,3 +203,12 @@ def test_solo_tiktok_muestra_cuenta_conectada():
 
     for red in ("YouTube", "Facebook", "Instagram", "LinkedIn"):
         assert social_red._cuenta_conectada(red) == {}
+
+
+def test_el_nombre_de_la_cuenta_no_puede_romper_el_markdown():
+    """Viene de una API: un asterisco o un guion bajo en el nombre
+    descolocarían el renderizado de toda la línea de cabecera."""
+    from src.ui.social_red import _sin_markdown
+
+    assert "*" not in _sin_markdown("Reversal *Institute*").replace("\\*", "")
+    assert _sin_markdown("a_b") == "a\\_b"

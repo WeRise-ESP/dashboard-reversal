@@ -95,16 +95,44 @@ def _cuenta_conectada(red: str) -> dict:
     return tiktok.cuenta()
 
 
+def _sin_markdown(txt: str) -> str:
+    """Neutraliza los caracteres con significado en markdown.
+
+    El nombre y el @usuario vienen de una API: un asterisco o un guion bajo
+    descolocarían el renderizado de toda la línea.
+    """
+    for c in "\\`*_{}[]()#+-.!":
+        txt = txt.replace(c, "\\" + c)
+    return txt
+
+
 def bloque_cuenta(red: str) -> None:
-    """Una línea con la cuenta conectada. Silenciosa si la red no la da."""
+    """Una línea con la cuenta conectada. Silenciosa si la red no la da.
+
+    En negrita y con el @usuario a propósito: es lo que permite ver de un
+    vistazo que el token apunta a la cuenta correcta y no a otra. El
+    `display_name` solo no basta — puede repetirse entre cuentas; el @ no.
+    """
     datos = _cuenta_conectada(red)
     nombre = datos.get("nombre")
     if not nombre:
         return
-    # Sin negritas ni markdown alrededor del nombre: viene de una API y un
-    # asterisco o un guion bajo descolocarían el renderizado.
-    st.caption(f"Cuenta conectada: {nombre} · "
-               f"{num_o_guion(datos.get('seguidores'))} seguidores")
+
+    arroba = datos.get("usuario")
+    enlace = datos.get("enlace")
+    if arroba:
+        etiqueta = f"@{_sin_markdown(arroba)}"
+        titular = f"[{etiqueta}]({enlace})" if enlace else etiqueta
+    else:
+        titular = _sin_markdown(nombre)
+
+    partes = [f"Cuenta conectada: **{titular}**"]
+    if arroba:
+        partes.append(_sin_markdown(nombre))
+    if datos.get("verificada"):
+        partes.append("✅ verificada")
+    partes.append(f"{num_o_guion(datos.get('seguidores'))} seguidores")
+    st.markdown(" · ".join(partes))
 
 
 def bloque_titular(kpis: pd.DataFrame, red: str) -> None:

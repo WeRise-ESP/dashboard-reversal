@@ -39,30 +39,30 @@ class DatosDashboard:
 
 
 # Caché por fuente con TTL distinto: HubSpot corto (cambia a diario), ads/GA4 largo.
-@st.cache_data(ttl=config.CACHE_TTL_ADS, show_spinner="Cargando Google Ads…")
+@st.cache_data(ttl=config.CACHE_TTL_ADS, max_entries=config.CACHE_MAX_ENTRIES, show_spinner="Cargando Google Ads…")
 def _cargar_google(desde, hasta):
     r = google_ads.obtener(desde, hasta)
     return r.df, r.origen
 
 
-@st.cache_data(ttl=config.CACHE_TTL_ADS, show_spinner="Cargando Meta Ads…")
+@st.cache_data(ttl=config.CACHE_TTL_ADS, max_entries=config.CACHE_MAX_ENTRIES, show_spinner="Cargando Meta Ads…")
 def _cargar_meta(desde, hasta):
     r = meta_ads.obtener(desde, hasta)
     return r.df, r.origen
 
 
-@st.cache_data(ttl=config.CACHE_TTL_GA4, show_spinner="Cargando GA4…")
+@st.cache_data(ttl=config.CACHE_TTL_GA4, max_entries=config.CACHE_MAX_ENTRIES, show_spinner="Cargando GA4…")
 def _cargar_ga4(desde, hasta):
     r = ga4.obtener(desde, hasta)
     return r.df, r.origen
 
 
-@st.cache_data(ttl=config.CACHE_TTL_GA4, show_spinner="Cargando GA4 (desgloses)…")
+@st.cache_data(ttl=config.CACHE_TTL_GA4, max_entries=config.CACHE_MAX_ENTRIES, show_spinner="Cargando GA4 (desgloses)…")
 def _cargar_ga4_extra(desde, hasta):
     return ga4.obtener_extra(desde, hasta)
 
 
-@st.cache_data(ttl=config.CACHE_TTL_HUBSPOT, show_spinner="Cargando HubSpot…")
+@st.cache_data(ttl=config.CACHE_TTL_HUBSPOT, max_entries=config.CACHE_MAX_ENTRIES, show_spinner="Cargando HubSpot…")
 def _cargar_hubspot(desde, hasta):
     leads = hubspot.obtener(desde, hasta)
     deals = hubspot.obtener_deals(desde, hasta)
@@ -103,7 +103,7 @@ _FUENTES_SOCIAL = (
 )
 
 
-@st.cache_data(ttl=config.CACHE_TTL_SOCIAL, show_spinner="Cargando social orgánico…")
+@st.cache_data(ttl=config.CACHE_TTL_SOCIAL, max_entries=config.CACHE_MAX_ENTRIES, show_spinner="Cargando social orgánico…")
 def _cargar_social(desde, hasta):
     diarios, posts, origenes = [], [], {}
     for red, fn_diario, fn_posts in _FUENTES_SOCIAL:

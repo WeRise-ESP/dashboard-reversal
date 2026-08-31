@@ -63,6 +63,13 @@ CACHE_TTL_HUBSPOT = 300   # 5 min
 CACHE_TTL_ADS = 1800      # 30 min
 CACHE_TTL_GA4 = 1800      # 30 min
 
+# Máximo de entradas por caché de datos. Cada cambio de periodo crea una entrada
+# nueva; sin tope la memoria crece hasta reventar el ~1 GB de Streamlit Cloud
+# (OOM: la app cicla arranca→error 498→reinicia). Con tope, las entradas viejas
+# se descartan (LRU) y la memoria queda acotada. 6 = suficiente para navegar
+# entre varios periodos sin recomputar constantemente.
+CACHE_MAX_ENTRIES = 6
+
 
 # --------------------------------------------------------------------------- #
 # Segmentos de campaña  ->  la certificación se vende a varios perfiles del

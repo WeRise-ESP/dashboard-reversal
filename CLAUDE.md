@@ -72,6 +72,7 @@ Tema de marca: verde `#0E7C52` (`src/config.py` → `TEMA`).
   directamente: `obtener()` pasa por `resolver`, que ante un fallo cae a datos de
   EJEMPLO, y unos datos inventados escritos en el histórico se volverían
   «reales» para siempre. Si esto se refactoriza, mantén esa propiedad.
+- **OOM por caché sin tope.** Cada `@st.cache_data(ttl=…)` del loader se indexa por `(desde, hasta)`: sin `max_entries` la memoria crece con cada cambio de periodo hasta reventar el ~1 GB de Streamlit Cloud (la app cicla arranca→error 498→reinicia). TODAS las cachés de datos llevan `max_entries=config.CACHE_MAX_ENTRIES` (=6). Si añades una caché nueva de datos por periodo, ponle el tope.
 - **Caché e histórico se recortan al periodo pedido; la API no.** La caché no
   está indexada por rango de fechas: guarda la última ventana consultada, que
   puede ser más ancha que la de ahora (`social_base._recortar`). Al resultado de
